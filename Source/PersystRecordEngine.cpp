@@ -127,19 +127,20 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
         streamIndex++;
 
         String datPath = getProcessorString(ch);
-        String dataFileName = contPath + datPath + "recording.dat";
-        String layoutFileName = contPath + datPath + "recording.lay";
+        String dataFileName = "recording.dat";
+        String dataFilePath = contPath + datPath + dataFileName;
+        String layoutFilePath = contPath + datPath + "recording.lay";
 
 
         ScopedPointer<SequentialBlockFile> bFile = new SequentialBlockFile(channelCounts[streamIndex], samplesPerBlock);
 
-        if (bFile->openFile(dataFileName))
+        if (bFile->openFile(dataFilePath))
             m_continuousFiles.add(bFile.release());
         else
             m_continuousFiles.add(nullptr);
 
         
-        PersystLayFileFormat layoutFile(layoutFileName,
+        PersystLayFileFormat layoutFile(layoutFilePath,
                              dataFileName,
                              ch->getSampleRate(),
                              ch->getBitVolts(),
