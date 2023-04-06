@@ -75,6 +75,15 @@ private:
     Array<unsigned int> m_channelIndexes;
     Array<unsigned int> m_fileIndexes;
     
+    HeapBlock<float> m_scaledBuffer;
+    HeapBlock<int16> m_intBuffer;
+    HeapBlock<int64> m_sampleNumberBuffer;
+    
+    Array<int64> m_samplesWritten;
+
+    
+    int m_bufferSize;
+    
     OwnedArray<SequentialBlockFile> m_continuousFiles;
     
     const int samplesPerBlock{ 4096 };

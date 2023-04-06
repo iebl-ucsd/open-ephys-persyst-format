@@ -24,8 +24,14 @@
 #include "PersystRecordEngine.h"
 #include "PersystLayFileFormat.h"
 
+#define MAX_BUFFER_SIZE 40960
+
 PersystRecordEngine::PersystRecordEngine() 
 { 
+    m_bufferSize = MAX_BUFFER_SIZE;
+    m_scaledBuffer.malloc(MAX_BUFFER_SIZE);
+    m_intBuffer.malloc(MAX_BUFFER_SIZE);
+    m_sampleNumberBuffer.malloc(MAX_BUFFER_SIZE);
 
 }
 	
@@ -62,6 +68,11 @@ String PersystRecordEngine::getProcessorString(const InfoObject* channelInfo)
 void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int recordingNumber)
 {
 
+    
+    m_channelIndexes.insertMultiple(0, 0, getNumRecordedContinuousChannels());
+    m_fileIndexes.insertMultiple(0, 0, getNumRecordedContinuousChannels());
+    m_samplesWritten.insertMultiple(0, 0, getNumRecordedContinuousChannels());
+    
     String basepath = rootFolder.getFullPathName() + rootFolder.getSeparatorString() + "experiment" + String(experimentNumber)
         + File::getSeparatorString() + "recording" + String(recordingNumber + 1) + File::getSeparatorString();
 
@@ -155,7 +166,47 @@ void PersystRecordEngine::writeContinuousData(int writeChannel,
 											   const double* ftsBuffer, 
 											   int size)
 {
+    if (!size)
+        return;
 
+    /* If our internal buffer is too small to hold the data... */
+    if (size > m_bufferSize) //shouldn't happen, but if does, this prevents crash...
+    {
+        std::cerr << "[RN] Write buffer overrun, resizing from: " << m_bufferSize << " to: " << size << std::endl;
+        m_scaledBuffer.malloc(size);
+        m_intBuffer.malloc(size);
+        m_sampleNumberBuffer.malloc(size);
+        m_bufferSize = size;
+    }
+
+    /* Convert signal from float to int w/ bitVolts scaling */
+    double multFactor = 1 / (float(0x7fff) * getContinuousChannel(realChannel)->getBitVolts());
+    FloatVectorOperations::copyWithMultiply(m_scaledBuffer.getData(), dataBuffer, multFactor, size);
+    AudioDataConverters::convertFloatToInt16LE(m_scaledBuffer.getData(), m_intBuffer.getData(), size);
+
+    /* Get the file index that belongs to the current recording channel */
+    int fileIndex = m_fileIndexes[writeChannel];
+
+    /* Write the data to that file */
+    m_continuousFiles[fileIndex]->writeChannel(
+        m_samplesWritten[writeChannel],
+        m_channelIndexes[writeChannel],
+        m_intBuffer.getData(),
+        size);
+    
+    m_samplesWritten.set(writeChannel, m_samplesWritten[writeChannel] + size);
+
+    /* If is first channel in subprocessor */
+    if (m_channelIndexes[writeChannel] == 0)
+    {
+
+        int64 baseSampleNumber = getLatestSampleNumber(writeChannel);
+
+        for (int i = 0; i < size; i++)
+            /* Generate int sample number */
+            m_sampleNumberBuffer[i] = baseSampleNumber + i;
+
+    }
 }
 
 void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)

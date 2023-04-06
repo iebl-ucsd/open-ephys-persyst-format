@@ -12,7 +12,7 @@
 
 class PersystLayFileFormat {
 public:
-    PersystLayFileFormat(String layoutFile, String dataFile, int samplingRate, float calibration, int waveformCount, String fileType = "Interleaved", int headerLength = 0, int dataType = 7);
+    PersystLayFileFormat(String layoutFile, String dataFile, int samplingRate, float calibration, int waveformCount, String fileType = "Interleaved", int headerLength = 0, int dataType = 0);
     
     String addField(String field, var value);
     
