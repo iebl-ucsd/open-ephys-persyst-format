@@ -26,21 +26,23 @@
 
 #include <RecordingLib.h>
 
-class RecordEnginePlugin : public RecordEngine
+class PersystRecordEngine : public RecordEngine
 {
 public:
 
 	/** Constructor */
-	RecordEnginePlugin();
+	PersystRecordEngine();
 	
 	/** Destructor */
-	~RecordEnginePlugin();
+	~PersystRecordEngine();
 
 	/** Launches the manager for this Record Engine, and instantiates any parameters */
 	static RecordEngineManager* getEngineManager();
 
 	/** Returns a string that can be used to identify this record engine*/
 	String getEngineId() const;
+    
+    String getProcessorString(const InfoObject* channelInfo);
 
 	/** Called when recording starts to open all needed files */
 	void openFiles(File rootFolder, int experimentNumber, int recordingNumber);
@@ -68,6 +70,15 @@ public:
 								int64 timestamp, 
 								float sourceSampleRate, 
 								String text);
+    
+private:
+    Array<unsigned int> m_channelIndexes;
+    Array<unsigned int> m_fileIndexes;
+    
+    OwnedArray<SequentialBlockFile> m_continuousFiles;
+    
+    const int samplesPerBlock{ 4096 };
+
 
 };
 
