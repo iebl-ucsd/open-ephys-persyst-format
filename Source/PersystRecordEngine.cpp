@@ -146,8 +146,8 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
         
         ScopedPointer<FileOutputStream> layoutFileStream  = new FileOutputStream(layoutFile.getLayoutFilePath());
         if(layoutFileStream -> openedOk()){
-            layoutFileStream -> writeString(layoutFile.toString());
-            layoutFileStream -> writeString("[SampleTimes]\n");
+            layoutFileStream -> writeText(layoutFile.toString(), false, false, nullptr);
+            layoutFileStream -> writeText("[SampleTimes]\n", false, false, nullptr);
             layoutFiles.add(layoutFileStream.release());
         }
         else
@@ -158,9 +158,21 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
 void PersystRecordEngine::closeFiles()
 {
+
     for(auto layoutFile : layoutFiles){
         layoutFile -> flush();
     }
+    layoutFiles.clear();
+    m_continuousFiles.clear();
+
+    m_channelIndexes.clear();
+    m_fileIndexes.clear();
+
+    m_scaledBuffer.malloc(MAX_BUFFER_SIZE);
+    m_intBuffer.malloc(MAX_BUFFER_SIZE);
+
+    m_samplesWritten.clear();
+
 }
 
 void PersystRecordEngine::writeContinuousData(int writeChannel, 
@@ -203,8 +215,7 @@ void PersystRecordEngine::writeContinuousData(int writeChannel,
 
         int64 baseSampleNumber = m_samplesWritten[writeChannel];
         String timestampString = String(baseSampleNumber) + String("=") + String(ftsBuffer[0]) + String("\n");
-        layoutFiles[fileIndex] -> writeString(timestampString);
-        
+        layoutFiles[fileIndex]  -> writeText(timestampString, false, false, nullptr);        
     }
     
     m_samplesWritten.set(writeChannel, m_samplesWritten[writeChannel] + size);
