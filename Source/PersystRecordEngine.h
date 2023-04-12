@@ -26,6 +26,8 @@
 
 #include <RecordingLib.h>
 
+class PersystLayFileFormat;
+
 class PersystRecordEngine : public RecordEngine
 {
 public:
@@ -75,9 +77,10 @@ private:
     Array<unsigned int> m_channelIndexes;
     Array<unsigned int> m_fileIndexes;
     
+    OwnedArray<FileOutputStream> layoutFiles;
+
     HeapBlock<float> m_scaledBuffer;
     HeapBlock<int16> m_intBuffer;
-    HeapBlock<int64> m_sampleNumberBuffer;
     
     Array<int64> m_samplesWritten;
 

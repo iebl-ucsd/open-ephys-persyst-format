@@ -31,7 +31,6 @@ PersystRecordEngine::PersystRecordEngine()
     m_bufferSize = MAX_BUFFER_SIZE;
     m_scaledBuffer.malloc(MAX_BUFFER_SIZE);
     m_intBuffer.malloc(MAX_BUFFER_SIZE);
-    m_sampleNumberBuffer.malloc(MAX_BUFFER_SIZE);
 
 }
 	
@@ -120,7 +119,6 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
     streamIndex = -1;
 
-    Array<PersystLayFileFormat> layoutFilesData;
     
     for (auto ch : firstChannels)
     {
@@ -146,19 +144,23 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
                              ch->getBitVolts(),
                              channelCounts[streamIndex]);
         
-        layoutFilesData.add(layoutFile);
-    }
-    
-    for(auto layFile: layoutFilesData) {
-        FileOutputStream layoutFileStream (layFile.getLayoutFilePath());
-        layoutFileStream.writeString(layFile.toString());
+        ScopedPointer<FileOutputStream> layoutFileStream  = new FileOutputStream(layoutFile.getLayoutFilePath());
+        if(layoutFileStream -> openedOk()){
+            layoutFileStream -> writeString(layoutFile.toString());
+            layoutFileStream -> writeString("[SampleTimes]\n");
+            layoutFiles.add(layoutFileStream.release());
+        }
+        else
+            layoutFiles.add(nullptr);
     }
 
 }
 
 void PersystRecordEngine::closeFiles()
 {
-
+    for(auto layoutFile : layoutFiles){
+        layoutFile -> flush();
+    }
 }
 
 void PersystRecordEngine::writeContinuousData(int writeChannel, 
@@ -176,7 +178,6 @@ void PersystRecordEngine::writeContinuousData(int writeChannel,
         std::cerr << "[RN] Write buffer overrun, resizing from: " << m_bufferSize << " to: " << size << std::endl;
         m_scaledBuffer.malloc(size);
         m_intBuffer.malloc(size);
-        m_sampleNumberBuffer.malloc(size);
         m_bufferSize = size;
     }
 
@@ -195,19 +196,19 @@ void PersystRecordEngine::writeContinuousData(int writeChannel,
         m_intBuffer.getData(),
         size);
     
-    m_samplesWritten.set(writeChannel, m_samplesWritten[writeChannel] + size);
 
     /* If is first channel in subprocessor */
     if (m_channelIndexes[writeChannel] == 0)
     {
 
-        int64 baseSampleNumber = getLatestSampleNumber(writeChannel);
-
-        for (int i = 0; i < size; i++)
-            /* Generate int sample number */
-            m_sampleNumberBuffer[i] = baseSampleNumber + i;
-
+        int64 baseSampleNumber = m_samplesWritten[writeChannel];
+        String timestampString = String(baseSampleNumber) + String("=") + String(ftsBuffer[0]) + String("\n");
+        layoutFiles[fileIndex] -> writeString(timestampString);
+        
     }
+    
+    m_samplesWritten.set(writeChannel, m_samplesWritten[writeChannel] + size);
+
 }
 
 void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
