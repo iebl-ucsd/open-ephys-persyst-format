@@ -10,24 +10,35 @@
 
 #include <JuceHeader.h>
 
+enum DataSubType {bits16, bits32};
+
 class PersystLayFileFormat {
 public:
-    PersystLayFileFormat(String layoutFile, String dataFile, int samplingRate, float calibration, int waveformCount, String fileType = "Interleaved", int headerLength = 0, int dataType = 0);
     
-    String addField(String field, var value);
+    static PersystLayFileFormat create(String layoutFile, int samplingRate, float calibration, int waveformCount);
     
+    PersystLayFileFormat& withDataFile(String dataFile);
+    PersystLayFileFormat& withFileType(String fileType);
+    PersystLayFileFormat& withHeaderLength(int headerLength);
+    PersystLayFileFormat& withDataType(DataSubType dataType);
+        
     String toString();
     
     String getLayoutFilePath();
 private:
-    String layoutFile;
-    String dataFile;
-    String fileType;
-    int samplingRate;
-    int headerLength;
-    float calibration;
-    int waveformCount;
-    int dataType;
+    
+    PersystLayFileFormat(String layoutFile, int samplingRate, float calibration, int waveformCount);
+    
+    String addField(String field, var value);
+    
+    String m_layoutFile;
+    String m_dataFile;
+    String m_fileType;
+    int m_samplingRate;
+    int m_headerLength;
+    float m_calibration;
+    int m_waveformCount;
+    int m_dataType;
 };
 
 
