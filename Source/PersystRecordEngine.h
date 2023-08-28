@@ -26,9 +26,7 @@
 
 #include <RecordingLib.h>
 
-class PersystLayFileFormat;
-
-class PersystRecordEngine : public RecordEngine
+class TESTABLE PersystRecordEngine : public RecordEngine
 {
 public:
 
@@ -61,29 +59,49 @@ public:
 
 	/** Write a single event to disk (TTL or TEXT) */
 	void writeEvent(int eventChannel, 
-				    const EventPacket& event);
+				    const EventPacket& event) override;
 
 	/** Write a spike to disk */
 	void writeSpike(int electrodeIndex,
-		const Spike* spike);
+		const Spike* spike) override;
 
-	/** Write the timestamp sync text messages to disk*/
+	/** Write the timestamp sync text messages to disk */
 	void writeTimestampSyncText(uint64 streamId, 
 								int64 timestamp, 
 								float sourceSampleRate, 
-								String text);
+								String text) override;
+    
+    void setParameter(EngineParameter& parameter) override;
+
     
 private:
+    
+    class EventRecording
+    {
+    public:
+        std::unique_ptr<NpyFile> data;
+        std::unique_ptr<NpyFile> samples;
+        std::unique_ptr<NpyFile> channels;
+        std::unique_ptr<NpyFile> extraFile;
+        std::unique_ptr<NpyFile> timestamps;
+    };
+    
+    static String jsonTypeValue(BaseType type);
+    void createChannelMetadata(const MetadataObject* channel, DynamicObject* jsonObject);
+    void increaseEventCounts(EventRecording* rec);
+
     Array<unsigned int> m_channelIndexes;
     Array<unsigned int> m_fileIndexes;
     
     OwnedArray<FileOutputStream> layoutFiles;
+    OwnedArray<EventRecording> m_eventFiles;
 
     HeapBlock<float> m_scaledBuffer;
     HeapBlock<int16> m_intBuffer;
     
     Array<int64> m_samplesWritten;
 
+    bool m_saveTTLWords{ true };
     
     int m_bufferSize;
     
