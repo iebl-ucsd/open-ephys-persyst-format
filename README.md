@@ -1,61 +1,49 @@
-# Record Engine Plugin Template
+# Persyst Format Record Engine
 
-This repository contains a template for building **Record Engine** plugins for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI). Record Engine plugins allow the GUI's Record Node to write data into a new format. By default, the GUI ships with Record Engines for the Binary and Open Ephys formats.
+This repository contains a Record Engine that formats recordings from the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) into files in the Persyst proprietary format. Record Engine plugins allow the GUI's Record Node to write data into a new format. 
 
-Information on the Open Ephys Plugin API can be found on [the GUI's documentation site](https://open-ephys.github.io/gui-docs/Developer-Guide/Open-Ephys-Plugin-API.html).
+## Persyst Format
 
-## Creating a new Record Engine Plugin
+The Persyst format produces two files: a binary data file containing channel voltage data (.dat) and a layout file that describes the format of the binary file (.lay)
 
-1. Click "Use this template" to instantiate a new repository under your GitHub account. 
-2. Clone the new repository into a directory at the same level as the `plugin-GUI` repository. This is typically named `OEPlugins`, but it can have any name you'd like.
-3. Modify the [OpenEphysLib.cpp file](https://open-ephys.github.io/gui-docs/Developer-Guide/Creating-a-new-plugin.html) to include your plugin's name and version number.
-4. Create the plugin [build files](https://open-ephys.github.io/gui-docs/Developer-Guide/Compiling-plugins.html) using CMake.
-5. Use Visual Studio (Windows), Xcode (macOS), or `make` (Linux) to compile the plugin.
-6. Edit the code to add custom functionality, and add additional source files as needed.
+### Layout File (.lay)
 
-## Repository structure
+The layout file is organized into sections with a \[Section Header\] followed by rows of section attributes.
 
-This repository contains 3 top-level directories:
+#### \[FileInfo\]
+- **File** Name of the Dat file or OEM record. May be either a full path or just the file name, in which case the file must be in the same folder as the .lay file.
+- **FileType** Type of  file. Should be set as "Interleaved", which desribes an interleaved binary file.
+- **SamplingRate** Sampling rate in Hz.
+- **HeaderLength** Length of the header in the .dat file. Default is 0.
+- **Calibration** Coefficient to convert  values in the .dat file to microvolts (uV).
+- **WaveformCount** Number of channels in the .dat file recording.
+- **Data Type** Data sub-type. Set to 0 for 16-bit recording, 7 for 32-bit recording.
 
-- `Build` - Plugin build files will be auto-generated here. These files will be ignored in all `git` commits.
-- `Source` - All plugin source files (`.h` and `.cpp`) should live here. There can be as many source code sub-directories as needed.
-- `Resources` - This is where you should store any non-source-code files, such as library files or scripts.
+#### \[SampleTimes\]
+The attributes in this section are used to synchronize samples with timestamps. Each row should be formatted as: *Sample Index(int)*=*Timestamp(float in seconds)*.
 
-## Using external libraries
 
-To link the plugin to external libraries, it is necessary to manually edit the Build/CMakeLists.txt file. The code for linking libraries is located in comments at the end.
-For most common libraries, the `find_package` option is recommended. An example would be
+#### Example .lay Files:
 
-```cmake
-find_package(ZLIB)
-target_link_libraries(${PLUGIN_NAME} ${ZLIB_LIBRARIES})
-target_include_directories(${PLUGIN_NAME} PRIVATE ${ZLIB_INCLUDE_DIRS})
-```
+\[FileInfo\]  
+File=recording.dat  
+FileType=Interleaved   
+SamplingRate=40000  
+HeaderLength=0  
+Calibration=0.05  
+WaveformCount=16  
+DataType=0  
+\[SampleTimes\]  
+0=0  
+20000=0.51  
+40000=1.02  
+60000=1.53  
+80000=2.04  
 
-If there is no standard package finder for cmake, `find_library`and `find_path` can be used to find the library and include files respectively. The commands will search in a variety of standard locations For example
+### Data File (.dat)
 
-```cmake
-find_library(ZMQ_LIBRARIES NAMES libzmq-v120-mt-4_0_4 zmq zmq-v120-mt-4_0_4) #the different names after names are not a list of libraries to include, but a list of possible names the library might have, useful for multiple architectures. find_library will return the first library found that matches any of the names
-find_path(ZMQ_INCLUDE_DIRS zmq.h)
+The data stored in the .dat file should correlate to what is described in the .lay file. Channels should interleaved and ordered by sample e.g. `Sample0Channel0Sample0Channel1...Sample0ChannelNSample1Channel0`. Values will be read as either 16 or 32 bit **signed** integers depending on the DataType. To convert to uV, the binary integers are multiplied by the Calibration value.
 
-target_link_libraries(${PLUGIN_NAME} ${ZMQ_LIBRARIES})
-target_include_directories(${PLUGIN_NAME} PRIVATE ${ZMQ_INCLUDE_DIRS})
-```
+## Installation
 
-### Providing libraries for Windows
-
-Since Windows does not have standardized paths for libraries, as Linux and macOS do, it is sometimes useful to pack the appropriate Windows version of the required libraries alongside the plugin.
-To do so, a _libs_ directory has to be created **at the top level** of the repository, alongside this README file, and files from all required libraries placed there. The required folder structure is:
-
-```
-    libs
-    ├─ include           #library headers
-    ├─ lib
-        ├─ x64           #64-bit compile-time (.lib) files
-        └─ x86           #32-bit compile time (.lib) files, if needed
-    └─ bin
-        ├─ x64           #64-bit runtime (.dll) files
-        └─ x86           #32-bit runtime (.dll) files, if needed
-```
-
-DLLs in the bin directories will be copied to the open-ephys GUI _shared_ folder when installing.
+This plugin should be installed using the pre-compiled library in the releases tab. Currently only Windows is supported. The Open Ephys GUI should be installed beforehand. To install, download the plugin .zip and extract contents. Move the plugin to the `plugins/` directory under the open-ephys executable.
