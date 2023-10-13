@@ -83,6 +83,8 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
     Array<const ContinuousChannel*> firstChannels;
     Array<int> channelCounts;
 
+    std::map<uint16, Array<String>> channelNamesByStreamID;
+
     for (int ch = 0; ch < getNumRecordedContinuousChannels(); ch++)
     {
 
@@ -107,6 +109,8 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
             indexWithinStream = 0;
         }
+
+        channelNamesByStreamID[channelInfo->getStreamId()].set(localIndex,channelInfo ->getName());
 
         m_fileIndexes.set(ch, streamIndex);
         m_channelIndexes.set(ch, indexWithinStream++);
@@ -147,6 +151,12 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
         ScopedPointer<FileOutputStream> layoutFileStream  = new FileOutputStream(layoutFile.getLayoutFilePath());
         if(layoutFileStream -> openedOk()){
             layoutFileStream -> writeText(layoutFile.toString(), false, false, nullptr);
+            layoutFileStream -> writeText("[ChannelMap]\n", false, false, nullptr);
+            //Persyst uses first index = 1
+            int persystChannelIndex = 1;
+            for(auto channelName : channelNamesByStreamID[ch->getStreamId()]) {
+                layoutFileStream -> writeText(channelName + String("=") + String(persystChannelIndex++) + String("\n"), false, false, nullptr);
+            }
             layoutFileStream -> writeText("[SampleTimes]\n", false, false, nullptr);
             layoutFiles.add(layoutFileStream.release());
         }

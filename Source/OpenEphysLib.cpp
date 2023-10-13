@@ -44,7 +44,7 @@ extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo* info)
 	The GUI refuses to load plugins with mismatched API versions */
 	info->apiVersion = PLUGIN_API_VER;
 	info->name = "PersystRecordEngine"; // <---- update this
-	info->libVersion = "0.1.0"; // <---- update this
+	info->libVersion = "0.1.1"; // <---- update this
 	info->numPlugins = NUM_PLUGINS;
 }
 

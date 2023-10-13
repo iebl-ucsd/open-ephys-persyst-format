@@ -258,6 +258,19 @@ protected:
         ASSERT_EQ(pt.get<int>("FileInfo.WaveformCount"), num_channels);
         ASSERT_EQ(pt.get<int>("FileInfo.DataType"), 0);
     }
+
+    void CheckLayoutChannelMap( const boost::property_tree::ptree& pt) {
+        boost::property_tree::ptree::const_assoc_iterator exists = pt.find("ChannelMap");
+        if (exists == pt.not_found()) {
+            FAIL() << "Test failed; layout file didn't have a ChannelMap section";
+        }
+        ASSERT_EQ(pt.get_child("ChannelMap").size(), num_channels);
+        for (int i = 0; i < num_channels; i++) {
+            String channelName = String("ChannelMap.CH") + String(i);
+            ASSERT_EQ(pt.get<int>(channelName.toStdString()), i + 1);
+        
+        }
+    }
     
     bool isStringAPositiveInteger(std::string s) {
         return !s.empty() && (std::find_if(s.begin(), s.end(), [](unsigned char c) {return std::isdigit(c);})  != s.end() );
@@ -409,6 +422,7 @@ TEST_F(PersystRecordEngineTests, TestLayoutFormat) {
     boost::property_tree::ptree pt;
     LoadLayoutFile(pt);
     CheckLayoutFileInfo(pt);
+    CheckLayoutChannelMap(pt);
     
 }
 
@@ -433,6 +447,7 @@ TEST_F(PersystRecordEngineTests, TestSampleIndexes_Continuous_Multiple) {
     boost::property_tree::ptree pt;
     LoadLayoutFile(pt);
     CheckLayoutFileInfo(pt);
+    CheckLayoutChannelMap(pt);
     CheckLayoutSampleTimes(pt, sample_rate_, num_samples_per_block);
 
 }
@@ -468,6 +483,8 @@ TEST_F(PersystRecordEngineTests, TestLayoutFormatChangedFiles) {
     parameters.experiment_index++;
     LoadLayoutFile(pt, parameters);
     CheckLayoutFileInfo(pt);
+    CheckLayoutChannelMap(pt);
+
     
 }
 
@@ -629,6 +646,7 @@ TEST_F(MultipleStreams_PersystRecordEngineTests, TestLayoutFormat_MultipleStream
         parameters.stream_dir_name = BuildStreamFileName(stream);
         LoadLayoutFile(pt, parameters);
         CheckLayoutFileInfo(pt);
+        CheckLayoutChannelMap(pt);
     }
     
 }
