@@ -43,7 +43,7 @@ protected:
 
         // Set this before creating the record node
         tester->setRecordingParentDirectory(parent_recording_dir.string());
-        processor = tester->Create<RecordNode>(Plugin::Processor::RECORD_NODE);
+        processor = tester->CreateProcessor<RecordNode>(Plugin::Processor::RECORD_NODE);
         std::unique_ptr<RecordEngineManager> record_engine_manager = std::unique_ptr<RecordEngineManager>(PersystRecordEngine::getEngineManager());
         processor -> overrideRecordEngine(record_engine_manager.get());
     }
