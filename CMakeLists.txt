@@ -28,10 +28,16 @@ set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS
 
 
 set(SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+
+if(BUILD_TESTS)
 set(TESTS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Tests)
+endif()
 
 file(GLOB_RECURSE SRC_FILES LIST_DIRECTORIES false "${SOURCE_PATH}/*.cpp" "${SOURCE_PATH}/*.h")
+
+if(BUILD_TESTS)
 file(GLOB_RECURSE TESTS_FILES LIST_DIRECTORIES false "${TESTS_PATH}/*.cpp")
+endif()
 
 set(GUI_COMMONLIB_DIR ${GUI_BASE_DIR}/installed_libs)
 
@@ -47,13 +53,14 @@ endif()
 
 add_dependencies(${PLUGIN_NAME} open-ephys)
 
-
+if(BUILD_TESTS)
 add_library(${PLUGIN_NAME}_testable SHARED ${SRC_FILES})
-
+endif()
 
 target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers cxx_std_17)
 target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include)
 
+if(BUILD_TESTS)
 target_compile_features(${PLUGIN_NAME}_testable PUBLIC cxx_auto_type cxx_generalized_initializers)
 target_include_directories(${PLUGIN_NAME}_testable PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include)
 
@@ -63,10 +70,13 @@ add_executable(
 )
 
 target_compile_features(${PLUGIN_NAME}_tests PRIVATE cxx_std_17)
-
+endif()
 
 set(GUI_BIN_DIR ${CMAKE_BINARY_DIR}/plugin-GUI/${CONFIGURATION_FOLDER})
+
+if(BUILD_TESTS)
 set(GUI_TEST_HELPERS_DIR ${GUI_BASE_DIR}/TestHelpers)
+endif()
 
 if (NOT CMAKE_LIBRARY_ARCHITECTURE)
 	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -111,10 +121,10 @@ elseif(MSVC OR LINUX)
        add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PLUGIN_NAME}> ${INSTALL_PATH})
 endif()
 
+if(BUILD_TESTS)
 if(MSVC)
 	add_custom_command(TARGET ${PLUGIN_NAME}_tests POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:gui_testable_source> $<TARGET_FILE_DIR:${PLUGIN_NAME}_tests>)
 	add_custom_command(TARGET ${PLUGIN_NAME}_tests POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:test_helpers> $<TARGET_FILE_DIR:${PLUGIN_NAME}_tests>)
-
 endif()
 
 add_dependencies(${PLUGIN_NAME}_testable gui_testable_source test_helpers)
@@ -129,6 +139,7 @@ target_compile_definitions(${PLUGIN_NAME}_tests PRIVATE -DBUILD_TESTS -DTEST_RUN
 target_link_libraries(${PLUGIN_NAME}_tests PRIVATE ${PLUGIN_NAME}_testable gtest_main test_helpers Boost::headers PUBLIC gui_testable_source)
 target_include_directories(${PLUGIN_NAME}_tests PRIVATE ${GUI_TEST_HELPERS_DIR}/include ${GUI_BASE_DIR}/Source)
 add_test(NAME ${PLUGIN_NAME}_tests  COMMAND ${PLUGIN_NAME}_tests)
+endif()
 
 #create filters for vs and xcode
 
