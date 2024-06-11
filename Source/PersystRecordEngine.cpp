@@ -36,7 +36,7 @@ PersystRecordEngine::PersystRecordEngine()
 PersystRecordEngine::~PersystRecordEngine()
 {}
 
-RecordEngineManager* PersystRecordEngine::GetEngineManager()
+RecordEngineManager* PersystRecordEngine::getEngineManager()
 {
     RecordEngineManager* man = new RecordEngineManager(
         "PERSYST", "Persyst",

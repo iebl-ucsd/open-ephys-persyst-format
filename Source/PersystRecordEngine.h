@@ -37,7 +37,7 @@ public:
     ~PersystRecordEngine();
 
     /** Launches the manager for this Record Engine, and instantiates any parameters */
-    static RecordEngineManager* GetEngineManager();
+    static RecordEngineManager* getEngineManager();
 
     /** Returns a string that can be used to identify this record engine*/
     String getEngineId() const override;
