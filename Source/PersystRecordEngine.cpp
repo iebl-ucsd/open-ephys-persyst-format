@@ -1,23 +1,23 @@
 /*
-	------------------------------------------------------------------
+    ------------------------------------------------------------------
 
-	This file is part of the Open Ephys GUI
-	Copyright (C) 2022 Open Ephys
+    This file is part of the Open Ephys GUI
+    Copyright (C) 2022 Open Ephys
 
-	------------------------------------------------------------------
+    ------------------------------------------------------------------
 
-	This program is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License
-	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -26,34 +26,31 @@
 
 #define MAX_BUFFER_SIZE 40960
 
-PersystRecordEngine::PersystRecordEngine() 
-{ 
-    m_bufferSize = MAX_BUFFER_SIZE;
-    m_scaledBuffer.malloc(MAX_BUFFER_SIZE);
-    m_intBuffer.malloc(MAX_BUFFER_SIZE);
-
+PersystRecordEngine::PersystRecordEngine()
+{
+    mBufferSize = MAX_BUFFER_SIZE;
+    mScaledBuffer.malloc(MAX_BUFFER_SIZE);
+    mIntBuffer.malloc(MAX_BUFFER_SIZE);
 }
-	
+
 PersystRecordEngine::~PersystRecordEngine()
-{
+{}
 
+RecordEngineManager* PersystRecordEngine::GetEngineManager()
+{
+    RecordEngineManager* man = new RecordEngineManager(
+        "PERSYST", "Persyst",
+        &(engineFactory<PersystRecordEngine>));
+
+    return man;
 }
 
-
-RecordEngineManager* PersystRecordEngine::getEngineManager()
+String PersystRecordEngine::getEngineId() const
 {
-	RecordEngineManager* man = new RecordEngineManager("PERSYST", "Persyst",
-		&(engineFactory<PersystRecordEngine>));
-	
-	return man;
+    return "PERSYST";
 }
 
-String PersystRecordEngine::getEngineId() const 
-{
-	return "PERSYST";
-}
-
-String PersystRecordEngine::getProcessorString(const InfoObject* channelInfo)
+String PersystRecordEngine::GetProcessorString(const InfoObject* channelInfo)
 {
     /* Format: Neuropixels-PXI-100.ProbeA-LFP */
     /* Convert spaces or @ symbols in source node name to underscore */
@@ -61,17 +58,16 @@ String PersystRecordEngine::getProcessorString(const InfoObject* channelInfo)
     fName += String(((ChannelInfoObject*)channelInfo)->getSourceNodeId());
     fName += "." + String(((ChannelInfoObject*)channelInfo)->getStreamName());
     fName += File::getSeparatorString();
+
     return fName;
 }
 
 void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int recordingNumber)
 {
+    mChannelIndexes.insertMultiple(0, 0, getNumRecordedContinuousChannels());
+    mFileIndexes.insertMultiple(0, 0, getNumRecordedContinuousChannels());
+    mSamplesWritten.insertMultiple(0, 0, getNumRecordedContinuousChannels());
 
-    
-    m_channelIndexes.insertMultiple(0, 0, getNumRecordedContinuousChannels());
-    m_fileIndexes.insertMultiple(0, 0, getNumRecordedContinuousChannels());
-    m_samplesWritten.insertMultiple(0, 0, getNumRecordedContinuousChannels());
-    
     String basepath = rootFolder.getFullPathName() + rootFolder.getSeparatorString() + "experiment" + String(experimentNumber)
         + File::getSeparatorString() + "recording" + String(recordingNumber + 1) + File::getSeparatorString();
 
@@ -95,76 +91,70 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
         int streamId = channelInfo->getStreamId();
 
-
-        
         if (streamId != lastStreamId)
         {
             firstChannels.add(channelInfo);
             streamIndex++;
 
             if (streamIndex > 0)
-            {
                 channelCounts.add(indexWithinStream);
-            }
 
             indexWithinStream = 0;
         }
 
-        channelNamesByStreamID[channelInfo->getStreamId()].set(localIndex,channelInfo ->getName());
+        channelNamesByStreamID[channelInfo->getStreamId()].set(localIndex, channelInfo->getName());
 
-        m_fileIndexes.set(ch, streamIndex);
-        m_channelIndexes.set(ch, indexWithinStream++);
+        mFileIndexes.set(ch, streamIndex);
+        mChannelIndexes.set(ch, indexWithinStream++);
 
         lastStreamId = streamId;
-
     }
 
     channelCounts.add(indexWithinStream);
 
     streamIndex = -1;
 
-    
     for (auto ch : firstChannels)
     {
         streamIndex++;
 
-        String datPath = getProcessorString(ch);
+        String datPath = GetProcessorString(ch);
         String dataFileName = "recording.dat";
         String dataFilePath = contPath + datPath + dataFileName;
         String layoutFilePath = contPath + datPath + "recording.lay";
 
-
-        ScopedPointer<SequentialBlockFile> bFile = new SequentialBlockFile(channelCounts[streamIndex], samplesPerBlock);
+        ScopedPointer<SequentialBlockFile> bFile = new SequentialBlockFile(channelCounts[streamIndex], mSamplesPerBlock);
 
         if (bFile->openFile(dataFilePath))
-            m_continuousFiles.add(bFile.release());
+            mContinuousFiles.add(bFile.release());
         else
-            m_continuousFiles.add(nullptr);
+            mContinuousFiles.add(nullptr);
 
-        
-        PersystLayFileFormat layoutFile = PersystLayFileFormat::create(layoutFilePath,
-                                                                         ch->getSampleRate(),
-                                                                         ch->getBitVolts(),
-                                                                         channelCounts[streamIndex])
-                                                                .withDataFile(dataFileName);
-        
-        ScopedPointer<FileOutputStream> layoutFileStream  = new FileOutputStream(layoutFile.getLayoutFilePath());
-        if(layoutFileStream -> openedOk()){
-            layoutFileStream -> writeText(layoutFile.toString(), false, false, nullptr);
-            layoutFileStream -> writeText("[ChannelMap]\n", false, false, nullptr);
+        PersystLayFileFormat layoutFile = PersystLayFileFormat::Create(layoutFilePath,
+            ch->getSampleRate(),
+            ch->getBitVolts(),
+            channelCounts[streamIndex])
+            .WithDataFile(dataFileName);
+
+        ScopedPointer<FileOutputStream> layoutFileStream = new FileOutputStream(layoutFile.GetLayoutFilePath());
+
+        if (layoutFileStream->openedOk())
+        {
+            layoutFileStream->writeText(layoutFile.ToString(), false, false, nullptr);
+            layoutFileStream->writeText("[ChannelMap]\n", false, false, nullptr);
             //Persyst uses first index = 1
             int persystChannelIndex = 1;
-            for(auto channelName : channelNamesByStreamID[ch->getStreamId()]) {
-                layoutFileStream -> writeText(channelName + String("=") + String(persystChannelIndex++) + String("\n"), false, false, nullptr);
-            }
-            layoutFileStream -> writeText("[SampleTimes]\n", false, false, nullptr);
-            layoutFiles.add(layoutFileStream.release());
+
+            for (auto channelName : channelNamesByStreamID[ch->getStreamId()])
+                layoutFileStream->writeText(channelName + String("=") + String(persystChannelIndex++) + String("\n"), false, false, nullptr);
+
+            layoutFileStream->writeText("[SampleTimes]\n", false, false, nullptr);
+            mLayoutFiles.add(layoutFileStream.release());
         }
-        else {
-            layoutFiles.add(nullptr);
-        }
+        else
+            mLayoutFiles.add(nullptr);
     }
-    
+
     //Event data files
     String eventPath(basepath + "events" + File::getSeparatorString());
     Array<var> eventChannelJSON;
@@ -173,7 +163,6 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
     for (int ev = 0; ev < getNumRecordedEventChannels(); ev++)
     {
-
         const EventChannel* chan = getEventChannel(ev);
         String eventName;
         NpyType type;
@@ -189,7 +178,7 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
             break;
         case EventChannel::TTL:
             LOGD("Got TTL channel");
-            eventName = getProcessorString(chan);
+            eventName = GetProcessorString(chan);
             if (ttlMap.count(eventName))
                 ttlMap[eventName]++;
             else
@@ -200,7 +189,7 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
             break;
         default:
             LOGD("Got BINARY group");
-            eventName = getProcessorString(chan);
+            eventName = GetProcessorString(chan);
             eventName += "BINARY_group";
             type = NpyType(chan->getEquivalentMetadataType(), chan->getLength());
             dataFileName = "data_array";
@@ -212,10 +201,9 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
         rec->data = std::make_unique<NpyFile>(eventPath + eventName + dataFileName + ".npy", type);
         rec->samples = std::make_unique<NpyFile>(eventPath + eventName + "sample_numbers.npy", NpyType(BaseType::INT64, 1));
         rec->timestamps = std::make_unique<NpyFile>(eventPath + eventName + "timestamps.npy", NpyType(BaseType::DOUBLE, 1));
-        if (chan->getType() == EventChannel::TTL && m_saveTTLWords)
-        {
+
+        if (chan->getType() == EventChannel::TTL && mSaveTTLWords)
             rec->extraFile = std::make_unique<NpyFile>(eventPath + eventName + "full_words.npy", NpyType(BaseType::UINT64, 1));
-        }
 
         DynamicObject::Ptr jsonChannel = new DynamicObject();
         jsonChannel->setProperty("folder_name", eventName.replace(File::getSeparatorString(), "/"));
@@ -224,99 +212,93 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
         jsonChannel->setProperty("identifier", chan->getIdentifier());
         jsonChannel->setProperty("sample_rate", chan->getSampleRate());
-        jsonChannel->setProperty("type", jsonTypeValue(type.getType()));
+        jsonChannel->setProperty("type", JsonTypeValue(type.getType()));
         jsonChannel->setProperty("source_processor", chan->getSourceNodeName());
         jsonChannel->setProperty("stream_name", chan->getStreamName());
 
         if (chan->getType() == EventChannel::TTL)
-        {
             jsonChannel->setProperty("initial_state", int(chan->getTTLWord()));
-        }
 
-        createChannelMetadata(chan, jsonChannel);
+        CreateChannelMetadata(chan, jsonChannel);
 
         //rec->metaDataFile = createEventMetadataFile(chan, eventPath + eventName + "metadata.npy", jsonChannel);
-        m_eventFiles.add(rec.release());
+        mEventFiles.add(rec.release());
         eventChannelJSON.add(var(jsonChannel));
     }
-
 }
 
 void PersystRecordEngine::closeFiles()
 {
+    for (auto layoutFile : mLayoutFiles)
+        layoutFile->flush();
 
-    for(auto layoutFile : layoutFiles){
-        layoutFile -> flush();
-    }
-    layoutFiles.clear();
-    m_continuousFiles.clear();
+    mLayoutFiles.clear();
+    mContinuousFiles.clear();
 
-    m_channelIndexes.clear();
-    m_fileIndexes.clear();
+    mChannelIndexes.clear();
+    mFileIndexes.clear();
 
-    m_scaledBuffer.malloc(MAX_BUFFER_SIZE);
-    m_intBuffer.malloc(MAX_BUFFER_SIZE);
+    mScaledBuffer.malloc(MAX_BUFFER_SIZE);
+    mIntBuffer.malloc(MAX_BUFFER_SIZE);
 
-    m_samplesWritten.clear();
-    
-    m_eventFiles.clear();
+    mSamplesWritten.clear();
 
+    mEventFiles.clear();
 }
 
-void PersystRecordEngine::writeContinuousData(int writeChannel, 
-											   int realChannel, 
-											   const float* dataBuffer, 
-											   const double* ftsBuffer, 
-											   int size)
+void PersystRecordEngine::writeContinuousData(
+    int writeChannel,
+    int realChannel,
+    const float* dataBuffer,
+    const double* ftsBuffer,
+    int size)
 {
     if (!size)
         return;
 
     /* If our internal buffer is too small to hold the data... */
-    if (size > m_bufferSize) //shouldn't happen, but if does, this prevents crash...
+    if (size > mBufferSize) //shouldn't happen, but if does, this prevents crash...
     {
-        std::cerr << "[RN] Write buffer overrun, resizing from: " << m_bufferSize << " to: " << size << std::endl;
-        m_scaledBuffer.malloc(size);
-        m_intBuffer.malloc(size);
-        m_bufferSize = size;
+        std::cerr << "[RN] Write buffer overrun, resizing from: " << mBufferSize << " to: " << size << std::endl;
+        mScaledBuffer.malloc(size);
+        mIntBuffer.malloc(size);
+        mBufferSize = size;
     }
 
     /* Convert signal from float to int w/ bitVolts scaling */
     double multFactor = 1 / (float(0x7fff) * getContinuousChannel(realChannel)->getBitVolts());
-    FloatVectorOperations::copyWithMultiply(m_scaledBuffer.getData(), dataBuffer, multFactor, size);
-    AudioDataConverters::convertFloatToInt16LE(m_scaledBuffer.getData(), m_intBuffer.getData(), size);
+    FloatVectorOperations::copyWithMultiply(mScaledBuffer.getData(), dataBuffer, multFactor, size);
+    AudioDataConverters::convertFloatToInt16LE(mScaledBuffer.getData(), mIntBuffer.getData(), size);
 
     /* Get the file index that belongs to the current recording channel */
-    int fileIndex = m_fileIndexes[writeChannel];
+    int fileIndex = mFileIndexes[writeChannel];
 
     /* Write the data to that file */
-    m_continuousFiles[fileIndex]->writeChannel(
-        m_samplesWritten[writeChannel],
-        m_channelIndexes[writeChannel],
-        m_intBuffer.getData(),
+    mContinuousFiles[fileIndex]->writeChannel(
+        mSamplesWritten[writeChannel],
+        mChannelIndexes[writeChannel],
+        mIntBuffer.getData(),
         size);
-    
+
 
     /* If is first channel in stream, then write timestamp for sample */
-    if (m_channelIndexes[writeChannel] == 0)
+    if (mChannelIndexes[writeChannel] == 0)
     {
 
-        int64 baseSampleNumber = m_samplesWritten[writeChannel];
+        int64 baseSampleNumber = mSamplesWritten[writeChannel];
         String timestampString = String(baseSampleNumber) + String("=") + String(ftsBuffer[0]) + String("\n");
-        layoutFiles[fileIndex]  -> writeText(timestampString, false, false, nullptr);        
+        mLayoutFiles[fileIndex]->writeText(timestampString, false, false, nullptr);
     }
-    
-    m_samplesWritten.set(writeChannel, m_samplesWritten[writeChannel] + size);
 
+    mSamplesWritten.set(writeChannel, mSamplesWritten[writeChannel] + size);
 }
 
 void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
 {
-
     const EventChannel* info = getEventChannel(eventChannel);
 
     EventPtr ev = Event::deserialize(event, info);
-    EventRecording* rec = m_eventFiles[eventChannel];
+    EventRecording* rec = mEventFiles[eventChannel];
 
     if (!rec) return;
 
@@ -358,27 +340,21 @@ void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
     // NOT IMPLEMENTED
     //writeEventMetadata(ev.get(), rec->metaDataFile.get());
 
-    increaseEventCounts(rec);
-
+    IncreaseEventCounts(rec);
 }
 
 
 void PersystRecordEngine::writeSpike(int electrodeIndex, const Spike* spike)
-{
-
-}
-
+{}
 
 void PersystRecordEngine::writeTimestampSyncText(
-	uint64 streamId, 
-	int64 timestamp, 
-	float sourceSampleRate, 
-	String text)
-{
+    uint64 streamId,
+    int64 timestamp,
+    float sourceSampleRate,
+    String text)
+{}
 
-}
-
-void PersystRecordEngine::increaseEventCounts(EventRecording* rec)
+void PersystRecordEngine::IncreaseEventCounts(EventRecording* rec)
 {
     rec->data->increaseRecordCount();
     rec->samples->increaseRecordCount();
@@ -387,7 +363,7 @@ void PersystRecordEngine::increaseEventCounts(EventRecording* rec)
     if (rec->extraFile) rec->extraFile->increaseRecordCount();
 }
 
-String PersystRecordEngine::jsonTypeValue(BaseType type)
+String PersystRecordEngine::JsonTypeValue(BaseType type)
 {
     switch (type)
     {
@@ -422,18 +398,19 @@ template <typename TO, typename FROM>
 void dataToVar(var& dataTo, const void* dataFrom, int length)
 {
     const FROM* buffer = reinterpret_cast<const FROM*>(dataFrom);
+
     for (int i = 0; i < length; i++)
-    {
         dataTo.append(static_cast<TO>(*(buffer + i)));
-    }
 }
 
-void PersystRecordEngine::createChannelMetadata(const MetadataObject* channel, DynamicObject* jsonFile)
+void PersystRecordEngine::CreateChannelMetadata(const MetadataObject* channel, DynamicObject* jsonFile)
 {
     int nMetadata = channel->getMetadataCount();
+
     if (nMetadata < 1) return;
 
     Array<var> jsonMetadata;
+
     for (int i = 0; i < nMetadata; i++)
     {
         const MetadataDescriptor* md = channel->getMetadataDescriptor(i);
@@ -444,7 +421,7 @@ void PersystRecordEngine::createChannelMetadata(const MetadataObject* channel, D
         jsonValues->setProperty("name", md->getName());
         jsonValues->setProperty("description", md->getDescription());
         jsonValues->setProperty("identifier", md->getIdentifier());
-        jsonValues->setProperty("type", jsonTypeValue(type));
+        jsonValues->setProperty("type", JsonTypeValue(type));
         jsonValues->setProperty("length", (int)length);
         var val;
 
@@ -495,15 +472,15 @@ void PersystRecordEngine::createChannelMetadata(const MetadataObject* channel, D
                 val = "invalid";
             }
         }
+
         jsonValues->setProperty("value", val);
         jsonMetadata.add(var(jsonValues));
     }
+
     jsonFile->setProperty("channel_metadata", jsonMetadata);
 }
 
 void PersystRecordEngine::setParameter(EngineParameter& parameter)
 {
-    boolParameter(0, m_saveTTLWords);
+    boolParameter(0, mSaveTTLWords);
 }
-
-

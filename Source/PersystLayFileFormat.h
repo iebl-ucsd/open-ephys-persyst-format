@@ -10,36 +10,35 @@
 
 #include <JuceHeader.h>
 
-enum DataSubType {bits16, bits32};
+enum DataSubType { bits16, bits32 };
 
-class PersystLayFileFormat {
+class PersystLayFileFormat
+{
 public:
-    
-    static PersystLayFileFormat create(String layoutFile, int samplingRate, float calibration, int waveformCount);
-    
-    PersystLayFileFormat& withDataFile(String dataFile);
-    PersystLayFileFormat& withFileType(String fileType);
-    PersystLayFileFormat& withHeaderLength(int headerLength);
-    PersystLayFileFormat& withDataType(DataSubType dataType);
-        
-    String toString();
-    
-    String getLayoutFilePath();
+    static PersystLayFileFormat Create(String layoutFile, int samplingRate, float calibration, int waveformCount);
+
+    PersystLayFileFormat& WithDataFile(String dataFile);
+    PersystLayFileFormat& WithFileType(String fileType);
+    PersystLayFileFormat& WithHeaderLength(int headerLength);
+    PersystLayFileFormat& WithDataType(DataSubType dataType);
+
+    String ToString() const;
+
+    String GetLayoutFilePath() const;
+
 private:
-    
     PersystLayFileFormat(String layoutFile, int samplingRate, float calibration, int waveformCount);
-    
-    String addField(String field, var value);
-    
-    String m_layoutFile;
-    String m_dataFile;
-    String m_fileType;
-    int m_samplingRate;
-    int m_headerLength;
-    float m_calibration;
-    int m_waveformCount;
-    int m_dataType;
+
+    String AddField(String field, var value) const;
+
+private:
+    String mLayoutFile;
+    String mDataFile;
+    String mFileType;
+    int mSamplingRate;
+    int mHeaderLength;
+    float mCalibration;
+    int mWaveformCount;
+    int mDataType;
 };
-
-
 #endif /* PersystLayFileFormatter_h */
