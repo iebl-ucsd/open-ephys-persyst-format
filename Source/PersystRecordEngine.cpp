@@ -284,7 +284,6 @@ void PersystRecordEngine::writeContinuousData(
     /* If is first channel in stream, then write timestamp for sample */
     if (mChannelIndexes[writeChannel] == 0)
     {
-
         int64 baseSampleNumber = mSamplesWritten[writeChannel];
         String timestampString = String(baseSampleNumber) + String("=") + String(ftsBuffer[0]) + String("\n");
         mLayoutFiles[fileIndex]->writeText(timestampString, false, false, nullptr);
@@ -304,7 +303,6 @@ void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
 
     if (ev->getEventType() == EventChannel::TTL)
     {
-
         TTLEvent* ttl = static_cast<TTLEvent*>(ev.get());
 
         int16 state = (ttl->getLine() + 1) * (ttl->getState() ? 1 : -1);
@@ -321,11 +319,9 @@ void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
             uint64 fullWord = ttl->getWord();
             rec->extraFile->writeData(&fullWord, sizeof(uint64));
         }
-
     }
     else if (ev->getEventType() == EventChannel::TEXT)
     {
-
         TextEvent* text = static_cast<TextEvent*>(ev.get());
 
         int64 sampleIdx = text->getSampleNumber();
