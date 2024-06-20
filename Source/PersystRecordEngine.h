@@ -25,6 +25,9 @@
 #define RECORDENGINEPLUGIN_H_DEFINED
 
 #include <RecordingLib.h>
+#include <vector>
+#include <utility>
+#include <unordered_map>
 
 class TESTABLE PersystRecordEngine : public RecordEngine
 {
@@ -108,5 +111,9 @@ private:
     OwnedArray<SequentialBlockFile> mContinuousFiles;
 
     const int mSamplesPerBlock{ 4096 };
+
+    std::unordered_map<int, std::vector<std::pair<String, double>>> mTextEvents;
+
+    int mCurrentWriteChannel = -1;
 };
 #endif

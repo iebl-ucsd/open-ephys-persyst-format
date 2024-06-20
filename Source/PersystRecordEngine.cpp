@@ -229,6 +229,35 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
 void PersystRecordEngine::closeFiles()
 {
+    /*
+        [Comments]
+        1.591833,0.000000,0,65536,test
+        3.046667,0.000000,0,65536,test2
+        4.046667,2.000000,2,65530,test3	
+    */
+
+    for (const auto& [writeChannel, textEvents] : mTextEvents)
+    {
+        int fileIndex = mFileIndexes[writeChannel];
+        mLayoutFiles[fileIndex]->writeText("[Comments]\n", false, false, nullptr);
+
+        double doubleDuration = 0;
+        int intDuration = 0;
+        int bufferSize = 65536;
+
+        for (const auto& [text, ts] : textEvents)
+        {
+            String textEventString = 
+                String(ts) + "," + 
+                String(doubleDuration) + "," + 
+                String(intDuration) + "," + 
+                String(bufferSize) + "," + 
+                text + String("\n");
+
+            mLayoutFiles[fileIndex]->writeText(textEventString, false, false, nullptr);
+        }
+    }
+
     for (auto layoutFile : mLayoutFiles)
         layoutFile->flush();
 
@@ -244,6 +273,8 @@ void PersystRecordEngine::closeFiles()
     mSamplesWritten.clear();
 
     mEventFiles.clear();
+
+    mTextEvents.clear();
 }
 
 void PersystRecordEngine::writeContinuousData(
@@ -255,6 +286,8 @@ void PersystRecordEngine::writeContinuousData(
 {
     if (!size)
         return;
+
+    mCurrentWriteChannel = writeChannel;
 
     /* If our internal buffer is too small to hold the data... */
     if (size > mBufferSize) //shouldn't happen, but if does, this prevents crash...
@@ -331,6 +364,11 @@ void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
         rec->timestamps->writeData(&ts, sizeof(double));
 
         rec->data->writeData(ev->getRawDataPointer(), info->getDataSize());
+
+        if (mTextEvents.find(mCurrentWriteChannel) != mTextEvents.end())
+            mTextEvents[mCurrentWriteChannel].emplace_back(text->getText(), ts);
+        else
+            mTextEvents[mCurrentWriteChannel] = { {text->getText(), ts} };
     }
 
     // NOT IMPLEMENTED
