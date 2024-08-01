@@ -17,219 +17,257 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
-struct DirectorySearchParameters{
+struct DirectorySearchParameters
+{
 public:
-    int experiment_index = 1;
-    int recording_index = 1;
-    std::optional<String> stream_dir_name = std::nullopt;
+    int experimentIndex = 1;
+    int recordingIndex = 1;
+    std::optional<String> streamDirName = std::nullopt;
 };
 
 
-class PersystRecordEngineTests :  public ::testing::Test {
+class PersystRecordEngineTests : public testing::Test
+{
 protected:
-    void SetUp() override {
-        tester = std::make_unique<ProcessorTester>(FakeSourceNodeParams{
-            num_channels,
-            sample_rate_,
-            bitVolts_,
-            streams_
-        });
+    void SetUp() override
+    {
+        mTester = std::make_unique<ProcessorTester>(FakeSourceNodeParams{
+            mNumChannels,
+            mSampleRate,
+            mBitVolts,
+            mStreams
+            });
 
-        parent_recording_dir = std::filesystem::temp_directory_path() / "persyst_record_engine_tests";
-        if (std::filesystem::exists(parent_recording_dir)) {
-            std::filesystem::remove_all(parent_recording_dir);
+        mParentRecordingDir = std::filesystem::temp_directory_path() / "persyst_record_engine_tests";
+        if (std::filesystem::exists(mParentRecordingDir))
+        {
+            std::filesystem::remove_all(mParentRecordingDir);
         }
-        std::filesystem::create_directory(parent_recording_dir);
+        std::filesystem::create_directory(mParentRecordingDir);
 
         // Set this before creating the record node
-        tester->setRecordingParentDirectory(parent_recording_dir.string());
-        processor = tester->CreateProcessor<RecordNode>(Plugin::Processor::RECORD_NODE);
-        std::unique_ptr<RecordEngineManager> record_engine_manager = std::unique_ptr<RecordEngineManager>(PersystRecordEngine::getEngineManager());
-        processor -> overrideRecordEngine(record_engine_manager.get());
+        mTester->setRecordingParentDirectory(mParentRecordingDir.string());
+        mProcessor = mTester->createProcessor<RecordNode>(Plugin::Processor::RECORD_NODE);
+        std::unique_ptr<RecordEngineManager> recordEngineManager = std::unique_ptr<RecordEngineManager>(PersystRecordEngine::getEngineManager());
+        mProcessor->overrideRecordEngine(recordEngineManager.get());
     }
 
-    void TearDown() override {
+    void TearDown() override
+    {
         // Swallow errors
         std::error_code ec;
-        std::filesystem::remove_all(parent_recording_dir, ec);
+        std::filesystem::remove_all(mParentRecordingDir, ec);
     }
 
-    AudioBuffer<float> CreateBuffer(float starting_value, float step, int num_channels, int num_samples) {
-        AudioBuffer<float> input_buffer(num_channels, num_samples);
+    AudioBuffer<float> CreateBuffer(float startingVal, float step, int mNumChannels, int numSamples)
+    {
+        AudioBuffer<float> inputBuffer(mNumChannels, numSamples);
 
         // in microvolts
-        float cur_value = starting_value;
-        for (int chidx = 0; chidx < num_channels; chidx++) {
-            for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-                input_buffer.setSample(chidx, sample_idx, cur_value);
-                cur_value += step;
+        float currVal = startingVal;
+        for (int chidx = 0; chidx < mNumChannels; chidx++)
+        {
+            for (int sampleIdx = 0; sampleIdx < numSamples; sampleIdx++)
+            {
+                inputBuffer.setSample(chidx, sampleIdx, currVal);
+                currVal += step;
             }
         }
-        return input_buffer;
+        return inputBuffer;
     }
 
-    void WriteBlock(AudioBuffer<float> &buffer, TTLEvent* maybe_ttl_event = nullptr) {
-        auto output_buffer = tester->ProcessBlock(processor, buffer, maybe_ttl_event);
+    void WriteBlock(AudioBuffer<float>& buffer, TTLEvent* maybeTtlEvent = nullptr)
+    {
+        auto outBuffer = mTester->processBlock(mProcessor, buffer, maybeTtlEvent);
         // Assert the buffer hasn't changed after process()
-        ASSERT_EQ(output_buffer.getNumSamples(), buffer.getNumSamples());
-        ASSERT_EQ(output_buffer.getNumChannels(), buffer.getNumChannels());
-        for (int chidx = 0; chidx < output_buffer.getNumChannels(); chidx++) {
-            for (int sample_idx = 0; sample_idx < output_buffer.getNumSamples(); ++sample_idx) {
+        ASSERT_EQ(outBuffer.getNumSamples(), buffer.getNumSamples());
+        ASSERT_EQ(outBuffer.getNumChannels(), buffer.getNumChannels());
+        for (int chidx = 0; chidx < outBuffer.getNumChannels(); chidx++)
+        {
+            for (int sampleIdx = 0; sampleIdx < outBuffer.getNumSamples(); ++sampleIdx)
+            {
                 ASSERT_EQ(
-                    output_buffer.getSample(chidx, sample_idx),
-                    buffer.getSample(chidx, sample_idx));
+                    outBuffer.getSample(chidx, sampleIdx),
+                    buffer.getSample(chidx, sampleIdx));
             }
         }
     }
 
-    bool EventsPathFor(const std::string& basename, std::filesystem::path* path, DirectorySearchParameters parameters = DirectorySearchParameters()) {
-        std::filesystem::path partial_path;
-        auto success = SubRecordingPathFor("events", "TTL", &partial_path, parameters);
-        if (!success) {
+    bool EventsPathFor(const std::string& baseName, std::filesystem::path* path, DirectorySearchParameters parameters = DirectorySearchParameters())
+    {
+        std::filesystem::path partialPath;
+        auto success = SubRecordingPathFor("events", "TTL", &partialPath, parameters);
+        if (!success)
+        {
             return false;
         }
-        auto ret = partial_path / basename;
-        if (std::filesystem::exists(ret)) {
+        auto ret = partialPath / baseName;
+        if (std::filesystem::exists(ret))
+        {
             *path = ret;
             return true;
-        } else {
+        }
+        else
+        {
             return false;
         }
     }
-    
-    std::vector<char> LoadNpyFileBinaryFullpath(const std::string& fullpath) {
-        std::ifstream data_ifstream(fullpath, std::ios::binary | std::ios::in);
 
-        data_ifstream.seekg(0, std::ios::end);
-        std::streampos fileSize = data_ifstream.tellg();
-        data_ifstream.seekg(0, std::ios::beg);
+    std::vector<char> LoadNpyFileBinaryFullpath(const std::string& fullPath)
+    {
+        std::ifstream dataIfStream(fullPath, std::ios::binary | std::ios::in);
 
-        std::vector<char> persisted_data(fileSize);
-        data_ifstream.read(persisted_data.data(), fileSize);
-        return persisted_data;
+        dataIfStream.seekg(0, std::ios::end);
+        std::streampos fileSize = dataIfStream.tellg();
+        dataIfStream.seekg(0, std::ios::beg);
+
+        std::vector<char> persistedData(fileSize);
+        dataIfStream.read(persistedData.data(), fileSize);
+        return persistedData;
     }
-    
-    void CompareBinaryFilesHex(const std::string& filename, const std::vector<char> bin_data, const std::string& expected_bin_data_hex) {
-        std::vector<char> expected_bin_data;
-        for (int i = 0; i < expected_bin_data_hex.length(); i += 2) {
-            std::string byteString = expected_bin_data_hex.substr(i, 2);
-            char byte = (char) strtol(byteString.c_str(), nullptr, 16);
-            expected_bin_data.push_back(byte);
+
+    void CompareBinaryFilesHex(const std::string& fileName, const std::vector<char> binData, const std::string& expectedBinDataHex)
+    {
+        std::vector<char> expectedBinData;
+        for (int i = 0; i < expectedBinDataHex.length(); i += 2)
+        {
+            std::string byteString = expectedBinDataHex.substr(i, 2);
+            char byte = (char)strtol(byteString.c_str(), nullptr, 16);
+            expectedBinData.push_back(byte);
         }
 
         // Create a string rep of the actual sample numbers bin in case it fails, to help debugging
-        std::stringstream bin_data_hex_ss;
-        bin_data_hex_ss << "Expected data for " << filename << " in hex to be=" << expected_bin_data_hex
-                        << " but received=";
-        bin_data_hex_ss << std::hex;
-        for (int i = 0; i < bin_data.size(); i++) {
-            bin_data_hex_ss << std::setw(2) << std::setfill('0') << (int)bin_data[i];
+        std::stringstream binDataHexSs;
+        binDataHexSs << "Expected data for " << fileName << " in hex to be=" << expectedBinDataHex
+            << " but received=";
+        binDataHexSs << std::hex;
+        for (int i = 0; i < binData.size(); i++)
+        {
+            binDataHexSs << std::setw(2) << std::setfill('0') << (int)binData[i];
         }
-        std::string err_msg = bin_data_hex_ss.str();
+        std::string errMsg = binDataHexSs.str();
 
-        ASSERT_EQ(bin_data.size(), expected_bin_data.size()) << err_msg;
-        for (int i = 0; i < bin_data.size(); i++) {
-            ASSERT_EQ(bin_data[i], expected_bin_data[i])
-                                << err_msg
-                                << " (error on index " << i << ")";
+        ASSERT_EQ(binData.size(), expectedBinData.size()) << errMsg;
+        for (int i = 0; i < binData.size(); i++)
+        {
+            ASSERT_EQ(binData[i], expectedBinData[i])
+                << errMsg
+                << " (error on index " << i << ")";
         }
     }
-    
+
     bool SubRecordingPathFor(
-        const std::string& subrecording_dirname,
-        const std::string& basename,
+        const std::string& subRecordingDirName,
+        const std::string& baseName,
         std::filesystem::path* path,
         DirectorySearchParameters parameters)
     {
         // Do verifications:
-        auto recording_dir = std::filesystem::directory_iterator(parent_recording_dir)->path();
+        auto recordingDir = std::filesystem::directory_iterator(mParentRecordingDir)->path();
         std::stringstream ss;
-        ss << "Record Node " << processor->getNodeId();
-        
-        std::stringstream experiment_string;
-        experiment_string << "experiment" << parameters.experiment_index;
-        std::stringstream recording_string;
-        recording_string << "recording" << parameters.recording_index;
-        auto recording_dir2 = recording_dir / ss.str() / experiment_string.str()/ recording_string.str() / subrecording_dirname;
-        if (!std::filesystem::exists(recording_dir2)) {
+        ss << "Record Node " << mProcessor->getNodeId();
+
+        std::stringstream experimentStr;
+        experimentStr << "experiment" << parameters.experimentIndex;
+        std::stringstream recordingStr;
+        recordingStr << "recording" << parameters.recordingIndex;
+        auto recordingDir2 = recordingDir / ss.str() / experimentStr.str() / recordingStr.str() / subRecordingDirName;
+        if (!std::filesystem::exists(recordingDir2))
+        {
             return false;
         }
 
-        std::filesystem::path recording_dir3;
-        for (const auto &subdir : std::filesystem::directory_iterator(recording_dir2)) {
-            auto subdir_basename = subdir.path().filename().string();
-            if(parameters.stream_dir_name.has_value()) {
-                if(subdir_basename == parameters.stream_dir_name.value()){
-                    recording_dir3 = subdir.path();
+        std::filesystem::path recordingDir3;
+        for (const auto& subdir : std::filesystem::directory_iterator(recordingDir2))
+        {
+            auto subDirBaseName = subdir.path().filename().string();
+            if (parameters.streamDirName.has_value())
+            {
+                if (subDirBaseName == parameters.streamDirName.value())
+                {
+                    recordingDir3 = subdir.path();
                 }
             }
-            else{
+            else
+            {
                 //Needs to work for multiple streams
-                if (subdir_basename.find("FakeSourceNode") != std::string::npos) {
-                    recording_dir3 = subdir.path();
+                if (subDirBaseName.find("FakeSourceNode") != std::string::npos)
+                {
+                    recordingDir3 = subdir.path();
                 }
             }
         }
 
-        if (!std::filesystem::exists(recording_dir3)) {
+        if (!std::filesystem::exists(recordingDir3))
+        {
             return false;
         }
 
-        auto ret = recording_dir3 / basename;
-        if (!std::filesystem::exists(ret)) {
+        auto ret = recordingDir3 / baseName;
+        if (!std::filesystem::exists(ret))
+        {
             return false;
         }
         *path = ret;
         return true;
     }
 
-    bool ContinuousPathFor(const std::string& basename, std::filesystem::path* path, DirectorySearchParameters parameters) {
-        return SubRecordingPathFor("continuous", basename, path, parameters);
+    bool ContinuousPathFor(const std::string& baseName, std::filesystem::path* path, DirectorySearchParameters parameters)
+    {
+        return SubRecordingPathFor("continuous", baseName, path, parameters);
     }
-    
 
-    void MaybeLoadContinuousDatFile(std::vector<int16_t> *output, bool *success, DirectorySearchParameters parameters) {
+
+    void MaybeLoadContinuousDatFile(std::vector<int16_t>* output, bool* success, DirectorySearchParameters parameters)
+    {
         // Do verifications:
-        std::filesystem::path continuous_dat_path;
-        *success = ContinuousPathFor("recording.dat", &continuous_dat_path, parameters);
-        if (!*success) {
+        std::filesystem::path continuousDatPath;
+        *success = ContinuousPathFor("recording.dat", &continuousDatPath, parameters);
+        if (!*success)
+        {
             return;
         }
 
-        std::ifstream continuous_ifstream(continuous_dat_path.string(), std::ios::binary | std::ios::in);
+        std::ifstream continuousIfStream(continuousDatPath.string(), std::ios::binary | std::ios::in);
 
-        continuous_ifstream.seekg(0, std::ios::end);
-        std::streampos fileSize = continuous_ifstream.tellg();
-        continuous_ifstream.seekg(0, std::ios::beg);
-        if (fileSize % sizeof(int16_t) != 0) {
+        continuousIfStream.seekg(0, std::ios::end);
+        std::streampos fileSize = continuousIfStream.tellg();
+        continuousIfStream.seekg(0, std::ios::beg);
+        if (fileSize % sizeof(int16_t) != 0)
+        {
             *success = false;
             return;
         }
 
-        std::vector<int16_t> persisted_data(fileSize / sizeof(int16_t));
-        continuous_ifstream.read((char *) persisted_data.data(), fileSize);
+        std::vector<int16_t> persistedData(fileSize / sizeof(int16_t));
+        continuousIfStream.read((char*)persistedData.data(), fileSize);
         *success = true;
-        *output = persisted_data;
+        *output = persistedData;
     }
 
-    void LoadContinuousDatFile(std::vector<int16_t> *output, DirectorySearchParameters parameters = DirectorySearchParameters()) {
+    void LoadContinuousDatFile(std::vector<int16_t>* output, DirectorySearchParameters parameters = DirectorySearchParameters())
+    {
         bool success = false;
         MaybeLoadContinuousDatFile(output, &success, parameters);
         ASSERT_TRUE(success);
     }
-    
-    void MaybeLoadLayoutFile(boost::property_tree::ptree &pt, bool *success, DirectorySearchParameters parameters) {
+
+    void MaybeLoadLayoutFile(boost::property_tree::ptree& pt, bool* success, DirectorySearchParameters parameters)
+    {
         // Do verifications:
-        std::filesystem::path continuous_dat_path;
-        *success = ContinuousPathFor("recording.lay", &continuous_dat_path, parameters);
-        if (!*success) {
+        std::filesystem::path continuousDatPath;
+        *success = ContinuousPathFor("recording.lay", &continuousDatPath, parameters);
+        if (!*success)
+        {
             return;
         }
 
-        try {
-            boost::property_tree::ini_parser::read_ini(continuous_dat_path.string(), pt);
+        try
+        {
+            boost::property_tree::ini_parser::read_ini(continuousDatPath.string(), pt);
         }
-        catch (const boost::property_tree::ini_parser_error & e){
+        catch (const boost::property_tree::ini_parser_error& e)
+        {
             *success = false;
             return;
         }
@@ -237,361 +275,402 @@ protected:
         return;
 
     }
-    
-    void LoadLayoutFile(boost::property_tree::ptree &pt, DirectorySearchParameters parameters = DirectorySearchParameters()) {
+
+    void LoadLayoutFile(boost::property_tree::ptree& pt, DirectorySearchParameters parameters = DirectorySearchParameters())
+    {
         bool success = false;
         MaybeLoadLayoutFile(pt, &success, parameters);
         ASSERT_TRUE(success);
     }
-    
-    void CheckLayoutFileInfo( const boost::property_tree::ptree& pt) {
+
+    void CheckLayoutFileInfo(const boost::property_tree::ptree& pt) const
+    {
         boost::property_tree::ptree::const_assoc_iterator exists = pt.find("FileInfo");
-        if(exists == pt.not_found()) {
+        if (exists == pt.not_found())
+        {
             FAIL() << "Test failed; layout file didn't have a FileInfo section";
         }
         ASSERT_EQ(pt.get_child("FileInfo").size(), 7);
         ASSERT_EQ(pt.get<std::string>("FileInfo.File"), "recording.dat");
         ASSERT_EQ(pt.get<std::string>("FileInfo.FileType"), "Interleaved");
-        ASSERT_EQ(pt.get<float>("FileInfo.SamplingRate"), sample_rate_);
+        ASSERT_EQ(pt.get<float>("FileInfo.SamplingRate"), mSampleRate);
         ASSERT_EQ(pt.get<int>("FileInfo.HeaderLength"), 0);
-        ASSERT_EQ(pt.get<float>("FileInfo.Calibration"), bitVolts_);
-        ASSERT_EQ(pt.get<int>("FileInfo.WaveformCount"), num_channels);
+        ASSERT_EQ(pt.get<float>("FileInfo.Calibration"), mBitVolts);
+        ASSERT_EQ(pt.get<int>("FileInfo.WaveformCount"), mNumChannels);
         ASSERT_EQ(pt.get<int>("FileInfo.DataType"), 0);
     }
 
-    void CheckLayoutChannelMap( const boost::property_tree::ptree& pt) {
+    void CheckLayoutChannelMap(const boost::property_tree::ptree& pt) const
+    {
         boost::property_tree::ptree::const_assoc_iterator exists = pt.find("ChannelMap");
-        if (exists == pt.not_found()) {
+        if (exists == pt.not_found())
+        {
             FAIL() << "Test failed; layout file didn't have a ChannelMap section";
         }
-        ASSERT_EQ(pt.get_child("ChannelMap").size(), num_channels);
-        for (int i = 0; i < num_channels; i++) {
+        ASSERT_EQ(pt.get_child("ChannelMap").size(), mNumChannels);
+        for (int i = 0; i < mNumChannels; i++)
+        {
             String channelName = String("ChannelMap.CH") + String(i);
             ASSERT_EQ(pt.get<int>(channelName.toStdString()), i + 1);
-        
+
         }
     }
-    
-    bool isStringAPositiveInteger(std::string s) {
-        return !s.empty() && (std::find_if(s.begin(), s.end(), [](unsigned char c) {return std::isdigit(c);})  != s.end() );
+
+    bool IsStringAPositiveInteger(std::string s)
+    {
+        return !s.empty() && (std::find_if(s.begin(), s.end(), [](unsigned char c) { return std::isdigit(c); }) != s.end());
     }
-    
-    void CheckLayoutSampleTimes(const boost::property_tree::ptree& pt, int sample_rate, int sample_per_block) {
+
+    void CheckLayoutSampleTimes(const boost::property_tree::ptree& pt, int sampleRate, int samplesPerBlock)
+    {
         boost::property_tree::ptree::const_assoc_iterator exists = pt.find("SampleTimes");
-        if(exists == pt.not_found()) {
+        if (exists == pt.not_found())
+        {
             FAIL() << "Test failed; layout file didn't have a SampleTimes section";
         }
-        
-        int expected_sample_index = 0;
-        double expected_sample_time = 0;
-        boost::property_tree::ptree reference_samples = pt.get_child("SampleTimes");
-        for(boost::property_tree::ptree::const_iterator it = reference_samples.begin(); it != reference_samples.end(); it++) {
+
+        int expectedSampleIdx = 0;
+        double expectedSampleTime = 0;
+        boost::property_tree::ptree referenceSamples = pt.get_child("SampleTimes");
+        for (boost::property_tree::ptree::const_iterator it = referenceSamples.begin(); it != referenceSamples.end(); it++)
+        {
             //Key should be an integer corresponding to the reference sample's index
-            if(isStringAPositiveInteger((*it).first)) {
-                ASSERT_EQ(std::stoi((*it).first), expected_sample_index);
+            if (IsStringAPositiveInteger((*it).first))
+            {
+                ASSERT_EQ(std::stoi((*it).first), expectedSampleIdx);
             }
-            else {
+            else
+            {
                 FAIL() << "Test failed; SampleTimes key not a positive integer";
             }
-            
+
             //Value should be a ptree whose value is a floating point timestamp
-            boost::optional<double> sample_time = ((*it).second.get_value_optional<double>());
-            if(sample_time.has_value()) {
-                ASSERT_NEAR(sample_time.value(), expected_sample_time, .001);
+            boost::optional<double> sampleTime = ((*it).second.get_value_optional<double>());
+            if (sampleTime.has_value())
+            {
+                ASSERT_NEAR(sampleTime.value(), expectedSampleTime, .001);
             }
-            else {
+            else
+            {
                 FAIL() << "Test failed; SampleTimes value not a floating point number";
 
             }
-            expected_sample_index += sample_per_block;
-            expected_sample_time += ((double)sample_per_block/sample_rate);
+            expectedSampleIdx += samplesPerBlock;
+            expectedSampleTime += ((double)samplesPerBlock / sampleRate);
         }
     }
-    
-    void UpdateSourceNodesStreamParams() {
-        FakeSourceNode* sn = dynamic_cast<FakeSourceNode*>(tester->getSourceNode());
+
+    void UpdateSourceNodesStreamParams()
+    {
+        FakeSourceNode* sn = dynamic_cast<FakeSourceNode*>(mTester->getSourceNode());
         sn->setParams(FakeSourceNodeParams{
-            num_channels,
-            sample_rate_,
-            bitVolts_
-        });
-        tester->updateSourceNodeSettings();
-        
+            mNumChannels,
+            mSampleRate,
+            mBitVolts
+            });
+        mTester->updateSourceNodeSettings();
+
     }
-    
-    String BuildStreamFileName(const DataStream * stream) {
-        String return_string;
-        return_string = stream -> getSourceNodeName().replaceCharacters(" @", "__") + "-";
-        return_string += stream -> getSourceNodeId();
-        return_string += "." + stream -> getName();
-        return return_string;
+
+    String BuildStreamFileName(const DataStream* stream)
+    {
+        String returnStr;
+        returnStr = stream->getSourceNodeName().replaceCharacters(" @", "__") + "-";
+        returnStr += stream->getSourceNodeId();
+        returnStr += "." + stream->getName();
+        return returnStr;
     }
 
 
-    static int16_t min_val_possible() {
+    static int16_t MinValPossible()
+    {
         // The min value is actually -32767 in the math in RecordNode, not -32768 like the "true" min for int16_t
         return (std::numeric_limits<int16_t>::min)() + 1;
     }
 
-    static int16_t max_val_possible() {
+    static int16_t MaxValPossible()
+    {
         return (std::numeric_limits<int16_t>::max)();
     }
 
-    RecordNode *processor;
-    int num_channels = 8;
-    float bitVolts_ = 1.0;
-    std::unique_ptr<ProcessorTester> tester;
-    std::filesystem::path parent_recording_dir;
-    float sample_rate_ = 1.0;
-    int streams_ = 1;
+    RecordNode* mProcessor;
+    int mNumChannels = 8;
+    float mBitVolts = 1.0;
+    std::unique_ptr<ProcessorTester> mTester;
+    std::filesystem::path mParentRecordingDir;
+    float mSampleRate = 1.0;
+    int mStreams = 1;
 };
 
 //From RecordNodeTests.cpp - uses same binary file writes
-TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Single) {
-    int num_samples = 100;
-    tester->startAcquisition(true);
+TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Single)
+{
+    int numSamples = 100;
+    mTester->startAcquisition(true);
 
-    auto input_buffer = CreateBuffer(1000.0, 20.0, num_channels, num_samples);
-    WriteBlock(input_buffer);
+    auto inputBuffer = CreateBuffer(1000.0, 20.0, mNumChannels, numSamples);
+    WriteBlock(inputBuffer);
 
     // The record node always flushes its pending writes when stopping acquisition, so we don't need to sleep before
     // stopping.
-    tester->stopAcquisition();
+    mTester->stopAcquisition();
 
-    std::vector<int16_t> persisted_data;
-    LoadContinuousDatFile(&persisted_data);
-    ASSERT_EQ(persisted_data.size(), num_channels * num_samples);
+    std::vector<int16_t> persistedData;
+    LoadContinuousDatFile(&persistedData);
+    ASSERT_EQ(persistedData.size(), mNumChannels * numSamples);
 
-    int persisted_data_idx = 0;
+    int persistedDataIdx = 0;
     // File is channel-interleaved, so ensure we iterate in the correct order:
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        for (int chidx = 0; chidx < num_channels; chidx++) {
-            auto expected_microvolts = input_buffer.getSample(chidx, sample_idx);
-            ASSERT_EQ(persisted_data[persisted_data_idx], expected_microvolts);
-            persisted_data_idx++;
+    for (int sampleIdx = 0; sampleIdx < numSamples; sampleIdx++)
+    {
+        for (int chidx = 0; chidx < mNumChannels; chidx++)
+        {
+            auto expected_microvolts = inputBuffer.getSample(chidx, sampleIdx);
+            ASSERT_EQ(persistedData[persistedDataIdx], expected_microvolts);
+            persistedDataIdx++;
         }
     }
 }
 
 //From RecordNodeTests.cpp - uses same binary file writes
-TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Multiple) {
-    tester->startAcquisition(true);
+TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Multiple)
+{
+    mTester->startAcquisition(true);
 
-    int num_samples_per_block = 100;
-    int num_blocks = 8;
-    std::vector<AudioBuffer<float>> input_buffers;
-    for (int i = 0; i < num_blocks; i++) {
-        auto input_buffer = CreateBuffer(1000.0f * i, 20.0, num_channels, num_samples_per_block);
-        WriteBlock(input_buffer);
-        input_buffers.push_back(input_buffer);
+    int numSamplesPerBlock = 100;
+    int numBlocks = 8;
+    std::vector<AudioBuffer<float>> inputBuffers;
+    for (int i = 0; i < numBlocks; i++)
+    {
+        auto inputBuffer = CreateBuffer(1000.0f * i, 20.0, mNumChannels, numSamplesPerBlock);
+        WriteBlock(inputBuffer);
+        inputBuffers.push_back(inputBuffer);
     }
 
-    tester->stopAcquisition();
+    mTester->stopAcquisition();
 
-    std::vector<int16_t> persisted_data;
-    LoadContinuousDatFile(&persisted_data);
-    ASSERT_EQ(persisted_data.size(), num_channels * num_samples_per_block * num_blocks);
+    std::vector<int16_t> persistedData;
+    LoadContinuousDatFile(&persistedData);
+    ASSERT_EQ(persistedData.size(), mNumChannels * numSamplesPerBlock * numBlocks);
 
-    int persisted_data_idx = 0;
+    int persistedDataIdx = 0;
     // File is channel-interleaved, so ensure we iterate in the correct order:
-    for (int block_idx = 0; block_idx < num_blocks; block_idx++) {
-        const auto& input_buffer = input_buffers[block_idx];
-        for (int sample_idx = 0; sample_idx < num_samples_per_block; sample_idx++) {
-            for (int chidx = 0; chidx < num_channels; chidx++) {
-                auto expected_microvolts = input_buffer.getSample(chidx, sample_idx);
-                ASSERT_EQ(persisted_data[persisted_data_idx], expected_microvolts);
-                persisted_data_idx++;
+    for (int blockIdx = 0; blockIdx < numBlocks; blockIdx++)
+    {
+        const auto& inputBuffer = inputBuffers[blockIdx];
+        for (int sampleIdx = 0; sampleIdx < numSamplesPerBlock; sampleIdx++)
+        {
+            for (int chidx = 0; chidx < mNumChannels; chidx++)
+            {
+                auto expectedMicroVolts = inputBuffer.getSample(chidx, sampleIdx);
+                ASSERT_EQ(persistedData[persistedDataIdx], expectedMicroVolts);
+                persistedDataIdx++;
             }
         }
     }
 }
 
 //From RecordNodeTests.cpp - uses same binary file writes
-TEST_F(PersystRecordEngineTests, TestEmpty) {
-    tester->startAcquisition(true);
-    tester->stopAcquisition();
+TEST_F(PersystRecordEngineTests, TestEmpty)
+{
+    mTester->startAcquisition(true);
+    mTester->stopAcquisition();
 
-    std::vector<int16_t> persisted_data;
-    LoadContinuousDatFile(&persisted_data);
-    ASSERT_EQ(persisted_data.size(), 0);
+    std::vector<int16_t> persistedData;
+    LoadContinuousDatFile(&persistedData);
+    ASSERT_EQ(persistedData.size(), 0);
 }
 
-TEST_F(PersystRecordEngineTests, TestLayoutFormat) {
-    tester->startAcquisition(true);
-    tester->stopAcquisition();
+TEST_F(PersystRecordEngineTests, TestLayoutFormat)
+{
+    mTester->startAcquisition(true);
+    mTester->stopAcquisition();
     boost::property_tree::ptree pt;
     LoadLayoutFile(pt);
     CheckLayoutFileInfo(pt);
     CheckLayoutChannelMap(pt);
-    
+
 }
 
-TEST_F(PersystRecordEngineTests, TestSampleIndexes_Continuous_Multiple) {
-    sample_rate_ = 100;
+TEST_F(PersystRecordEngineTests, TestSampleIndexes_Continuous_Multiple)
+{
+    mSampleRate = 100;
     UpdateSourceNodesStreamParams();
 
-    tester->startAcquisition(true);
+    mTester->startAcquisition(true);
 
-    int num_samples_per_block = 110;
+    int numSamplesPerBlock = 110;
     int num_blocks = 8;
-    std::vector<AudioBuffer<float>> input_buffers;
-    for (int i = 0; i < num_blocks; i++) {
-        auto input_buffer = CreateBuffer(1000.0f * i, 20.0, num_channels, num_samples_per_block);
-        WriteBlock(input_buffer);
+    std::vector<AudioBuffer<float>> inputBuffers;
+    for (int i = 0; i < num_blocks; i++)
+    {
+        auto inputBuffer = CreateBuffer(1000.0f * i, 20.0, mNumChannels, numSamplesPerBlock);
+        WriteBlock(inputBuffer);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        input_buffers.push_back(input_buffer);
+        inputBuffers.push_back(inputBuffer);
     }
 
-    tester->stopAcquisition();
-    
+    mTester->stopAcquisition();
+
     boost::property_tree::ptree pt;
     LoadLayoutFile(pt);
     CheckLayoutFileInfo(pt);
     CheckLayoutChannelMap(pt);
-    CheckLayoutSampleTimes(pt, sample_rate_, num_samples_per_block);
+    CheckLayoutSampleTimes(pt, mSampleRate, numSamplesPerBlock);
 
 }
 
-TEST_F(PersystRecordEngineTests, TestLayoutFormatChangedFiles) {
-    tester->startAcquisition(true);
-    tester->stopAcquisition();
+TEST_F(PersystRecordEngineTests, TestLayoutFormatChangedFiles)
+{
+    mTester->startAcquisition(true);
+    mTester->stopAcquisition();
     boost::property_tree::ptree pt;
     DirectorySearchParameters parameters;
     LoadLayoutFile(pt, parameters);
     CheckLayoutFileInfo(pt);
-    
-    bitVolts_ = 0.195;
+
+    mBitVolts = 0.195;
     UpdateSourceNodesStreamParams();
-    tester->startAcquisition(true);
-    tester->stopAcquisition();
-    parameters.experiment_index++;
+    mTester->startAcquisition(true);
+    mTester->stopAcquisition();
+    parameters.experimentIndex++;
     LoadLayoutFile(pt, parameters);
     CheckLayoutFileInfo(pt);
-    
-    sample_rate_ = 1000;
+
+    mSampleRate = 1000;
     UpdateSourceNodesStreamParams();
-    tester->startAcquisition(true);
-    tester->stopAcquisition();
-    parameters.experiment_index++;
+    mTester->startAcquisition(true);
+    mTester->stopAcquisition();
+    parameters.experimentIndex++;
     LoadLayoutFile(pt, parameters);
     CheckLayoutFileInfo(pt);
-    
-    num_channels = 32;
+
+    mNumChannels = 32;
     UpdateSourceNodesStreamParams();
-    tester->startAcquisition(true);
-    tester->stopAcquisition();
-    parameters.experiment_index++;
+    mTester->startAcquisition(true);
+    mTester->stopAcquisition();
+    parameters.experimentIndex++;
     LoadLayoutFile(pt, parameters);
     CheckLayoutFileInfo(pt);
     CheckLayoutChannelMap(pt);
 
-    
+
 }
 
 //From RecordNodeTests.cpp - uses same event file writes
-TEST_F(PersystRecordEngineTests, Test_PersistsEvents) {
-    processor->setRecordEvents(true);
-    processor->updateSettings();
+TEST_F(PersystRecordEngineTests, Test_PersistsEvents)
+{
+    mProcessor->setRecordEvents(true);
+    mProcessor->updateSettings();
 
-    tester->startAcquisition(true);
-    int num_samples = 5;
+    mTester->startAcquisition(true);
+    int numSamples = 5;
 
-    auto stream_id = processor->getDataStreams()[0]->getStreamId();
-    auto event_channels = tester->GetSourceNodeDataStream(stream_id)->getEventChannels();
-    ASSERT_GE(event_channels.size(), 1);
-    TTLEventPtr event_ptr = TTLEvent::createTTLEvent(
-        event_channels[0],
+    auto streamId = mProcessor->getDataStreams()[0]->getStreamId();
+    auto eventChannels = mTester->getSourceNodeDataStream(streamId)->getEventChannels();
+    ASSERT_GE(eventChannels.size(), 1);
+    TTLEventPtr eventPtr = TTLEvent::createTTLEvent(
+        eventChannels[0],
         1,
         2,
         true);
-    auto input_buffer = CreateBuffer(1000.0, 20.0, num_channels, num_samples);
-    WriteBlock(input_buffer, event_ptr.get());
-    tester->stopAcquisition();
+    auto inputBuffer = CreateBuffer(1000.0, 20.0, mNumChannels, numSamples);
+    WriteBlock(inputBuffer, eventPtr.get());
+    mTester->stopAcquisition();
 
-    std::filesystem::path sample_numbers_path;
-    ASSERT_TRUE(EventsPathFor("sample_numbers.npy", &sample_numbers_path));
-    auto sample_numbers_bin = LoadNpyFileBinaryFullpath(sample_numbers_path.string());
+    std::filesystem::path sampleNumbersPath;
+    ASSERT_TRUE(EventsPathFor("sample_numbers.npy", &sampleNumbersPath));
+    auto sampleNumbersBin = LoadNpyFileBinaryFullpath(sampleNumbersPath.string());
 
     /**
      * Same logic as above:
      *      import numpy as np, io, binascii; b = io.BytesIO(); np.save(b, np.array([1], dtype=np.int64)); b.seek(0); print(binascii.hexlify(b.read()))
      */
-    std::string expected_sample_numbers_hex =
+    std::string expectedSampleNumbersHex =
         "934e554d5059010076007b276465736372273a20273c6938272c2027666f727472616e5f6f72646572273a2046616c73652c2027736861"
         "7065273a2028312c292c207d20202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
         "20202020202020202020202020202020200a0100000000000000";
-    CompareBinaryFilesHex("sample_numbers.npy", sample_numbers_bin, expected_sample_numbers_hex);
+    CompareBinaryFilesHex("sample_numbers.npy", sampleNumbersBin, expectedSampleNumbersHex);
 
-    std::filesystem::path full_words_path;
-    ASSERT_TRUE(EventsPathFor("full_words.npy", &full_words_path));
-    auto full_words_bin = LoadNpyFileBinaryFullpath(full_words_path.string());
+    std::filesystem::path fullWordsPath;
+    ASSERT_TRUE(EventsPathFor("full_words.npy", &fullWordsPath));
+    auto fullWordsBin = LoadNpyFileBinaryFullpath(fullWordsPath.string());
 
     /**
      * Same logic as above:
      *      import numpy as np, io, binascii; b = io.BytesIO(); np.save(b, np.array([4], dtype=np.uint64)); b.seek(0); print(binascii.hexlify(b.read()))
      */
-    std::string expected_full_words_hex =
+    std::string expectedFullWordsHex =
         "934e554d5059010076007b276465736372273a20273c7538272c2027666f727472616e5f6f72646572273a2046616c73652c2027736861"
         "7065273a2028312c292c207d20202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
         "20202020202020202020202020202020200a0400000000000000";
-    CompareBinaryFilesHex("full_words.npy", full_words_bin, expected_full_words_hex);
+    CompareBinaryFilesHex("full_words.npy", fullWordsBin, expectedFullWordsHex);
 }
 
-class CustomBitVolts_PersystRecordEngineTests : public PersystRecordEngineTests {
-    void SetUp() override {
-        bitVolts_ = 0.195;
+class CustomBitVolts_PersystRecordEngineTests : public PersystRecordEngineTests
+{
+    void SetUp() override
+    {
+        mBitVolts = 0.195;
         PersystRecordEngineTests::SetUp();
     }
 };
 
 //From RecordNodeTests.cpp - uses same binary file writes
-TEST_F(CustomBitVolts_PersystRecordEngineTests, Test_RespectsBitVolts) {
-    int num_samples = 100;
-    tester->startAcquisition(true);
-    auto input_buffer = CreateBuffer(1000.0, 20.0, num_channels, num_samples);
-    WriteBlock(input_buffer);
-    tester->stopAcquisition();
+TEST_F(CustomBitVolts_PersystRecordEngineTests, Test_RespectsBitVolts)
+{
+    int numSamples = 100;
+    mTester->startAcquisition(true);
+    auto inputBuffer = CreateBuffer(1000.0, 20.0, mNumChannels, numSamples);
+    WriteBlock(inputBuffer);
+    mTester->stopAcquisition();
 
-    std::vector<int16_t> persisted_data;
-    LoadContinuousDatFile(&persisted_data);
-    ASSERT_EQ(persisted_data.size(), num_channels * num_samples);
+    std::vector<int16_t> persistedData;
+    LoadContinuousDatFile(&persistedData);
+    ASSERT_EQ(persistedData.size(), mNumChannels * numSamples);
 
-    int persisted_data_idx = 0;
+    int persistedDataIdx = 0;
     // File is channel-interleaved, so ensure we iterate in the correct order:
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        for (int chidx = 0; chidx < num_channels; chidx++) {
-            auto expected_microvolts = input_buffer.getSample(chidx, sample_idx);
-            auto expected_converted = expected_microvolts / bitVolts_;
+    for (int sampleIdx = 0; sampleIdx < numSamples; sampleIdx++)
+    {
+        for (int chidx = 0; chidx < mNumChannels; chidx++)
+        {
+            auto expected_microvolts = inputBuffer.getSample(chidx, sampleIdx);
+            auto expected_converted = expected_microvolts / mBitVolts;
 
             // Rounds to nearest int, like BinaryRecording does, and clamp within bounds
             int expected_rounded = juce::roundToInt(expected_converted);
-            int16_t expected_persisted = (int16_t) std::clamp(
+            int16_t expected_persisted = (int16_t)std::clamp(
                 expected_rounded,
-                (int) min_val_possible(),
-                (int) max_val_possible());
-            ASSERT_EQ(persisted_data[persisted_data_idx], expected_persisted);
-            persisted_data_idx++;
+                (int)MinValPossible(),
+                (int)MaxValPossible());
+            ASSERT_EQ(persistedData[persistedDataIdx], expected_persisted);
+            persistedDataIdx++;
         }
     }
 }
 
-class MultipleStreams_PersystRecordEngineTests : public PersystRecordEngineTests {
-    void SetUp() override {
-        streams_ = 2;
+class MultipleStreams_PersystRecordEngineTests : public PersystRecordEngineTests
+{
+    void SetUp() override
+    {
+        mStreams = 2;
         PersystRecordEngineTests::SetUp();
     }
 };
 
-TEST_F(MultipleStreams_PersystRecordEngineTests, TestCorrectDirectories_MultipleStreams) {
-    tester->startAcquisition(true, true);
-    tester->stopAcquisition();
+TEST_F(MultipleStreams_PersystRecordEngineTests, TestCorrectDirectories_MultipleStreams)
+{
+    mTester->startAcquisition(true, true);
+    mTester->stopAcquisition();
     int i = 0;
-    for(const auto & stream: processor->getDataStreams()) {
-        
+    for (const auto& stream : mProcessor->getDataStreams())
+    {
+
         std::filesystem::path path_result;
         DirectorySearchParameters parameters;
-        parameters.stream_dir_name = BuildStreamFileName(stream);
-        ASSERT_EQ(parameters.stream_dir_name, "Record_Node-2.FakeSourceNode"+String(i));
+        parameters.streamDirName = BuildStreamFileName(stream);
+        ASSERT_EQ(parameters.streamDirName, "Record_Node-2.FakeSourceNode" + String(i));
         bool search_result = ContinuousPathFor("recording.dat", &path_result, parameters);
         ASSERT_EQ(search_result, true);
 
@@ -599,55 +678,63 @@ TEST_F(MultipleStreams_PersystRecordEngineTests, TestCorrectDirectories_Multiple
     }
 }
 
-TEST_F(MultipleStreams_PersystRecordEngineTests, TestInputOutput_MultipleStreamsContinous) {
-    tester->startAcquisition(true, true);
+TEST_F(MultipleStreams_PersystRecordEngineTests, TestInputOutput_MultipleStreamsContinous)
+{
+    mTester->startAcquisition(true, true);
 
-    int num_samples_per_block = 100;
+    int numSamplesPerBlock = 100;
     int num_blocks = 8;
-    std::vector<AudioBuffer<float>> input_buffers;
-    for (int i = 0; i < num_blocks; i++) {
-        auto input_buffer = CreateBuffer(100.0f * i, 10.0, num_channels * streams_, num_samples_per_block);
-        WriteBlock(input_buffer);
-        input_buffers.push_back(input_buffer);
+    std::vector<AudioBuffer<float>> inputBuffers;
+    for (int i = 0; i < num_blocks; i++)
+    {
+        auto inputBuffer = CreateBuffer(100.0f * i, 10.0, mNumChannels * mStreams, numSamplesPerBlock);
+        WriteBlock(inputBuffer);
+        inputBuffers.push_back(inputBuffer);
     }
 
-    tester->stopAcquisition();
-    
-    int stream_idx = 0;
-    for(const auto & stream: processor->getDataStreams()) {
-        std::vector<int16_t> persisted_data;
-        DirectorySearchParameters parameters;
-        parameters.stream_dir_name = BuildStreamFileName(stream);
-        LoadContinuousDatFile(&persisted_data, parameters);
-        ASSERT_EQ(persisted_data.size(), num_channels * num_samples_per_block * num_blocks);
+    mTester->stopAcquisition();
 
-        int persisted_data_idx = 0;
+    int streamIdx = 0;
+    for (const auto& stream : mProcessor->getDataStreams())
+    {
+        std::vector<int16_t> persistedData;
+        DirectorySearchParameters parameters;
+        parameters.streamDirName = BuildStreamFileName(stream);
+        LoadContinuousDatFile(&persistedData, parameters);
+        ASSERT_EQ(persistedData.size(), mNumChannels * numSamplesPerBlock * num_blocks);
+
+        int persistedDataIdx = 0;
         // File is channel-interleaved, so ensure we iterate in the correct order:
-        for (int block_idx = 0; block_idx < num_blocks; block_idx++) {
-            const auto& input_buffer = input_buffers[block_idx];
-            for (int sample_idx = 0; sample_idx < num_samples_per_block; sample_idx++) {
-                for (int chidx = 0; chidx < num_channels; chidx++) {
-                    auto expected_microvolts = input_buffer.getSample(chidx + stream_idx * num_channels, sample_idx);
-                    ASSERT_EQ(persisted_data[persisted_data_idx], expected_microvolts);
-                    persisted_data_idx++;
+        for (int blockIdx = 0; blockIdx < num_blocks; blockIdx++)
+        {
+            const auto& inputBuffer = inputBuffers[blockIdx];
+            for (int sampleIdx = 0; sampleIdx < numSamplesPerBlock; sampleIdx++)
+            {
+                for (int chidx = 0; chidx < mNumChannels; chidx++)
+                {
+                    auto expected_microvolts = inputBuffer.getSample(chidx + streamIdx * mNumChannels, sampleIdx);
+                    ASSERT_EQ(persistedData[persistedDataIdx], expected_microvolts);
+                    persistedDataIdx++;
                 }
             }
         }
-        stream_idx++;
+        streamIdx++;
     }
 }
 
-TEST_F(MultipleStreams_PersystRecordEngineTests, TestLayoutFormat_MultipleStreams) {
-    tester->startAcquisition(true, true);
-    tester->stopAcquisition();
-    for(const auto & stream: processor->getDataStreams()) {
+TEST_F(MultipleStreams_PersystRecordEngineTests, TestLayoutFormat_MultipleStreams)
+{
+    mTester->startAcquisition(true, true);
+    mTester->stopAcquisition();
+    for (const auto& stream : mProcessor->getDataStreams())
+    {
         boost::property_tree::ptree pt;
         DirectorySearchParameters parameters;
-        parameters.stream_dir_name = BuildStreamFileName(stream);
+        parameters.streamDirName = BuildStreamFileName(stream);
         LoadLayoutFile(pt, parameters);
         CheckLayoutFileInfo(pt);
         CheckLayoutChannelMap(pt);
     }
-    
+
 }
 
