@@ -57,12 +57,14 @@ if(BUILD_TESTS)
 add_library(${PLUGIN_NAME}_testable SHARED ${SRC_FILES})
 endif()
 
+find_package(SQLite3 REQUIRED)
+
 target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers cxx_std_17)
-target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include)
+target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include ${SQLite3_INCLUDE_DIRS})
 
 if(BUILD_TESTS)
 target_compile_features(${PLUGIN_NAME}_testable PUBLIC cxx_auto_type cxx_generalized_initializers)
-target_include_directories(${PLUGIN_NAME}_testable PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include)
+target_include_directories(${PLUGIN_NAME}_testable PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include ${SQLite3_INCLUDE_DIRS})
 
 add_executable(
 		${PLUGIN_NAME}_tests
@@ -113,6 +115,9 @@ elseif(APPLE)
 	set(CMAKE_PREFIX_PATH /opt/local)
 endif()
 
+set(SQLITE_LIB ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Binaries/sqlite3.lib)
+
+target_link_libraries(${PLUGIN_NAME} ${SQLITE_LIB})
 
 if(APPLE)
        add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${INSTALL_PATH}/$<TARGET_BUNDLE_DIR_NAME:${PLUGIN_NAME}>) 
