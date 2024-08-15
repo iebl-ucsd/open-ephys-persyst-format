@@ -28,6 +28,7 @@
 #include <vector>
 #include <utility>
 #include <unordered_map>
+#include <sqlite3.h>
 
 class TESTABLE PersystRecordEngine : public RecordEngine
 {
@@ -91,6 +92,9 @@ private:
     static String JsonTypeValue(BaseType type);
     void CreateChannelMetadata(const MetadataObject* channel, DynamicObject* jsonObject);
     void IncreaseEventCounts(EventRecording* rec);
+    bool ConstructDatabase(const String& path);
+    void WriteSampleTimesFromDbToLayoutFile();
+    void WriteAnnotationsFromDbToLayoutFile();
 
 private:
     Array<unsigned int> mChannelIndexes;
@@ -115,5 +119,9 @@ private:
     std::unordered_map<int, std::vector<std::pair<String, double>>> mTextEvents;
 
     int mCurrentWriteChannel = -1;
+
+    sqlite3* mDatabase{ nullptr };
+
+    int mSampleTimesPosition{ 0 };
 };
 #endif
