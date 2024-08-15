@@ -293,8 +293,6 @@ void PersystRecordEngine::writeContinuousData(
     if (mChannelIndexes[writeChannel] == 0)
     {
         int64 baseSampleNumber = mSamplesWritten[writeChannel];
-        //String timestampString = String(baseSampleNumber) + String("=") + String(ftsBuffer[0]) + String("\n");
-        //mLayoutFiles[fileIndex]->writeText(timestampString, false, false, nullptr);
 
         const char* insertSampleTimeSql = 
             "INSERT INTO SampleTimes (BaseSampleNumber, Timestamp) "

@@ -58,6 +58,7 @@ add_library(${PLUGIN_NAME}_testable SHARED ${SRC_FILES})
 endif()
 
 find_package(SQLite3 REQUIRED)
+target_link_libraries(${PLUGIN_NAME} SQLite::SQLite3)
 
 target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers cxx_std_17)
 target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include ${SQLite3_INCLUDE_DIRS})
@@ -114,10 +115,6 @@ elseif(APPLE)
 	install(TARGETS ${PLUGIN_NAME} DESTINATION $ENV{HOME}/Library/Application\ Support/open-ephys/plugins-api8)
 	set(CMAKE_PREFIX_PATH /opt/local)
 endif()
-
-set(SQLITE_LIB ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Binaries/sqlite3.lib)
-
-target_link_libraries(${PLUGIN_NAME} ${SQLITE_LIB})
 
 if(APPLE)
        add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${INSTALL_PATH}/$<TARGET_BUNDLE_DIR_NAME:${PLUGIN_NAME}>) 
