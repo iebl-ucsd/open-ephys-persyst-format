@@ -93,8 +93,10 @@ private:
     void CreateChannelMetadata(const MetadataObject* channel, DynamicObject* jsonObject);
     void IncreaseEventCounts(EventRecording* rec);
     bool ConstructDatabase(const String& path);
-    void WriteSampleTimesFromDbToLayoutFile();
-    void WriteAnnotationsFromDbToLayoutFile();
+    void InsertIntoSampleTimesTable(int64 baseSampleNumber, double timestamp);
+    void InsertIntoAnnotationsTable(double timestamp, const char* comment);
+    void WriteSampleTimesFromDbToLayoutFile(int writeChannel);
+    void WriteAnnotationsFromDbToLayoutFile(int writeChannel);
 
 private:
     Array<unsigned int> mChannelIndexes;
@@ -117,8 +119,6 @@ private:
     const int mSamplesPerBlock{ 4096 };
 
     std::unordered_map<int, std::vector<std::pair<String, double>>> mTextEvents;
-
-    int mCurrentWriteChannel = -1;
 
     sqlite3* mDatabase{ nullptr };
 

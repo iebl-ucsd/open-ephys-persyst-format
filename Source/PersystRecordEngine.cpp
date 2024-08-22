@@ -263,8 +263,6 @@ void PersystRecordEngine::writeContinuousData(
     if (!size)
         return;
 
-    mCurrentWriteChannel = writeChannel;
-
     /* If our internal buffer is too small to hold the data... */
     if (size > mBufferSize) //shouldn't happen, but if does, this prevents crash...
     {
@@ -294,29 +292,13 @@ void PersystRecordEngine::writeContinuousData(
     {
         int64 baseSampleNumber = mSamplesWritten[writeChannel];
 
-        const char* insertSampleTimeSql = 
-            "INSERT INTO SampleTimes (BaseSampleNumber, Timestamp) "
-            "VALUES (?, ?);";
-
-        sqlite3_stmt* stmt;
-        int error = sqlite3_prepare_v2(mDatabase, insertSampleTimeSql, -1, &stmt, nullptr);
-
-        if (error != SQLITE_OK)
-            LOGC("Failed to prepare statement: ", insertSampleTimeSql);
-
-        sqlite3_bind_int(stmt, 1, baseSampleNumber);
-        sqlite3_bind_double(stmt, 2, ftsBuffer[0]);
-
-        if (sqlite3_step(stmt) != SQLITE_DONE)
-            LOGC("Failed to insert data: (", baseSampleNumber, ", ", ftsBuffer[0], ")");
-
-        sqlite3_finalize(stmt);
+        InsertIntoSampleTimesTable(baseSampleNumber, ftsBuffer[0]);
 
         mLayoutFiles[fileIndex]->setPosition(mSampleTimesPosition);
         mLayoutFiles[fileIndex]->truncate();
 
-        WriteSampleTimesFromDbToLayoutFile();
-        WriteAnnotationsFromDbToLayoutFile();
+        WriteSampleTimesFromDbToLayoutFile(writeChannel);
+        WriteAnnotationsFromDbToLayoutFile(writeChannel);
 
         mLayoutFiles[fileIndex]->flush();
     }
@@ -364,23 +346,7 @@ void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
 
         rec->data->writeData(ev->getRawDataPointer(), info->getDataSize());
 
-        const char* insertAnnotationSql = 
-            "INSERT INTO Annotations (Timestamp, Comment) "
-            "VALUES (?, ?);";
-
-        sqlite3_stmt* stmt;
-        int error = sqlite3_prepare_v2(mDatabase, insertAnnotationSql, -1, &stmt, nullptr);
-
-        if (error != SQLITE_OK)
-            LOGC("Failed to prepare statement: ", insertAnnotationSql);
-
-        sqlite3_bind_double(stmt, 1, ts);
-        sqlite3_bind_text(stmt, 2, text->getText().getCharPointer(), -1, SQLITE_STATIC);
-
-        if (sqlite3_step(stmt) != SQLITE_DONE)
-            LOGC("Failed to insert data: (", ts, ", ", text->getText(), ")");
-
-        sqlite3_finalize(stmt);
+        InsertIntoAnnotationsTable(ts, text->getText().toRawUTF8());
     }
 
     // NOT IMPLEMENTED
@@ -465,7 +431,49 @@ bool PersystRecordEngine::ConstructDatabase(const String& path)
     return true;
 }
 
-void PersystRecordEngine::WriteSampleTimesFromDbToLayoutFile()
+void PersystRecordEngine::InsertIntoSampleTimesTable(int64 baseSampleNumber, double timestamp)
+{
+    const char* insertSampleTimeSql = 
+        "INSERT INTO SampleTimes (BaseSampleNumber, Timestamp) "
+        "VALUES (?, ?);";
+
+    sqlite3_stmt* stmt;
+    int error = sqlite3_prepare_v2(mDatabase, insertSampleTimeSql, -1, &stmt, nullptr);
+
+    if (error != SQLITE_OK)
+        LOGC("Failed to prepare statement: ", insertSampleTimeSql);
+
+    sqlite3_bind_int(stmt, 1, baseSampleNumber);
+    sqlite3_bind_double(stmt, 2, timestamp);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+        LOGC("Failed to insert data: (", baseSampleNumber, ", ", timestamp, ")");
+
+    sqlite3_finalize(stmt);
+}
+
+void PersystRecordEngine::InsertIntoAnnotationsTable(double timestamp, const char* comment)
+{
+    const char* insertAnnotationSql = 
+        "INSERT INTO Annotations (Timestamp, Comment) "
+        "VALUES (?, ?);";
+
+    sqlite3_stmt* stmt;
+    int error = sqlite3_prepare_v2(mDatabase, insertAnnotationSql, -1, &stmt, nullptr);
+
+    if (error != SQLITE_OK)
+        LOGC("Failed to prepare statement: ", insertAnnotationSql);
+
+    sqlite3_bind_double(stmt, 1, timestamp);
+    sqlite3_bind_text(stmt, 2, comment, -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+        LOGC("Failed to insert data: (", timestamp, ", ", comment, ")");
+
+    sqlite3_finalize(stmt);
+}
+
+void PersystRecordEngine::WriteSampleTimesFromDbToLayoutFile(const int writeChannel)
 {
     const char* selectSampleTimesSql = "SELECT * FROM SampleTimes;";
     sqlite3_stmt* stmt;
@@ -474,34 +482,28 @@ void PersystRecordEngine::WriteSampleTimesFromDbToLayoutFile()
     if (error != SQLITE_OK)
         LOGC("Failed to prepare statement: ", selectSampleTimesSql);
 
-    int fileIndex = mFileIndexes[mCurrentWriteChannel];
+    int fileIndex = mFileIndexes[writeChannel];
 
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         int baseSampleNumber = sqlite3_column_int(stmt, 0);
         double timestamp = sqlite3_column_double(stmt, 1);
 
-        for (auto& rec : mContinuousFiles)
-        {
-            if (rec)
-            {
-                mLayoutFiles[fileIndex]->writeText(String(baseSampleNumber) + 
-                    String("=") + 
-                    String(timestamp) + 
-                    String("\n"), 
-                    false, 
-                    false, 
-                    nullptr);
-            }
-        }
+        mLayoutFiles[fileIndex]->writeText(String(baseSampleNumber) + 
+            String("=") + 
+            String(timestamp) + 
+            String("\n"), 
+            false, 
+            false, 
+            nullptr);
     }
 
     sqlite3_finalize(stmt);
 }
 
-void PersystRecordEngine::WriteAnnotationsFromDbToLayoutFile()
+void PersystRecordEngine::WriteAnnotationsFromDbToLayoutFile(const int writeChannel)
 {
-    int fileIndex = mFileIndexes[mCurrentWriteChannel];
+    int fileIndex = mFileIndexes[writeChannel];
     mLayoutFiles[fileIndex]->writeText("[Comments]\n", false, false, nullptr);
 
     const char* selectAnnotationsSql = "SELECT * FROM Annotations;";
@@ -519,21 +521,15 @@ void PersystRecordEngine::WriteAnnotationsFromDbToLayoutFile()
         int bufferSize = sqlite3_column_int(stmt, 3);
         const char* comment = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
 
-        for (auto& rec : mContinuousFiles)
-        {
-            if (rec)
-            {
-                mLayoutFiles[fileIndex]->writeText(String(timestamp) + "," +
-                    String(duration) + "," +
-                    String(durationInt) + "," +
-                    String(bufferSize) + "," +
-                    String(comment) +
-                    String("\n"),
-                    false,
-                    false,
-                    nullptr);
-            }
-        }
+        mLayoutFiles[fileIndex]->writeText(String(timestamp) + "," +
+            String(duration) + "," +
+            String(durationInt) + "," +
+            String(bufferSize) + "," +
+            String(comment) +
+            String("\n"),
+            false,
+            false,
+            nullptr);
     }
 
     sqlite3_finalize(stmt);
