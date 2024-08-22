@@ -298,8 +298,9 @@ void PersystRecordEngine::writeContinuousData(
         mLayoutFiles[fileIndex]->truncate();
 
         WriteSampleTimesFromDbToLayoutFile(writeChannel);
-        WriteAnnotationsFromDbToLayoutFile(writeChannel);
+        mLayoutFiles[fileIndex]->flush();
 
+        WriteAnnotationsFromDbToLayoutFile(writeChannel);
         mLayoutFiles[fileIndex]->flush();
     }
 
@@ -463,6 +464,9 @@ void PersystRecordEngine::InsertIntoAnnotationsTable(double timestamp, const cha
 
     if (error != SQLITE_OK)
         LOGC("Failed to prepare statement: ", insertAnnotationSql);
+
+    if (timestamp < 0)
+        timestamp = 0;
 
     sqlite3_bind_double(stmt, 1, timestamp);
     sqlite3_bind_text(stmt, 2, comment, -1, SQLITE_STATIC);
