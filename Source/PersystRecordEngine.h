@@ -24,6 +24,9 @@
 #ifndef RECORDENGINEPLUGIN_H_DEFINED
 #define RECORDENGINEPLUGIN_H_DEFINED
 
+#include "DatabaseManager.h"
+#include "LayFileAnnotationExtractor.h"
+
 #include <RecordingLib.h>
 #include <vector>
 #include <utility>
@@ -38,7 +41,7 @@ public:
     PersystRecordEngine();
 
     /** Destructor */
-    ~PersystRecordEngine();
+    ~PersystRecordEngine() override;
 
     /** Launches the manager for this Record Engine, and instantiates any parameters */
     static RecordEngineManager* getEngineManager();
@@ -77,6 +80,8 @@ public:
 
     void setParameter(EngineParameter& parameter) override;
 
+    int getSampleTimesPosition() const;
+
 private:
     class EventRecording
     {
@@ -92,11 +97,6 @@ private:
     static String JsonTypeValue(BaseType type);
     void CreateChannelMetadata(const MetadataObject* channel, DynamicObject* jsonObject);
     void IncreaseEventCounts(EventRecording* rec);
-    bool ConstructDatabase(const String& path);
-    void InsertIntoSampleTimesTable(int64 baseSampleNumber, double timestamp);
-    void InsertIntoAnnotationsTable(double timestamp, const char* comment);
-    void WriteSampleTimesFromDbToLayoutFile(int writeChannel);
-    void WriteAnnotationsFromDbToLayoutFile(int writeChannel);
 
 private:
     Array<unsigned int> mChannelIndexes;
@@ -104,24 +104,21 @@ private:
 
     OwnedArray<FileOutputStream> mLayoutFiles;
     OwnedArray<EventRecording> mEventFiles;
+    OwnedArray<SequentialBlockFile> mContinuousFiles;
 
     HeapBlock<float> mScaledBuffer;
     HeapBlock<int16> mIntBuffer;
-
-    Array<int64> mSamplesWritten;
+    int mBufferSize;
 
     bool mSaveTTLWords{ true };
 
-    int mBufferSize;
-
-    OwnedArray<SequentialBlockFile> mContinuousFiles;
-
     const int mSamplesPerBlock{ 4096 };
+    int mSampleTimesPosition{ 0 };
+    Array<int64> mSamplesWritten;
 
     std::unordered_map<int, std::vector<std::pair<String, double>>> mTextEvents;
 
-    sqlite3* mDatabase{ nullptr };
-
-    int mSampleTimesPosition{ 0 };
+    DatabaseManager mDatabaseManager;
+    OwnedArray<LayFileAnnotationExtractor> mAnnotationExtractors;
 };
 #endif
