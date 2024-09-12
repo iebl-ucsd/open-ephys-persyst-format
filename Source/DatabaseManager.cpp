@@ -4,8 +4,7 @@ DatabaseManager::DatabaseManager() = default;
 
 DatabaseManager::~DatabaseManager()
 {
-    if (mDatabase)
-        sqlite3_close(mDatabase);
+    CloseDatabase();
 }
 
 bool DatabaseManager::ConstructDatabase(const String& path)
@@ -39,17 +38,17 @@ bool DatabaseManager::ConstructDatabase(const String& path)
         return false;
     } 
     else 
-        LOGC("SampleTimes Table created successfully: ", createSampleTimesTableSql);
+        LOGC("SampleTimes table created successfully: ", createSampleTimesTableSql);
 
-    const char* createAnnotationsTableSql =
-        "CREATE TABLE IF NOT EXISTS Annotations ("
+    const char* createCommentsTableSql =
+        "CREATE TABLE IF NOT EXISTS Comments ("
         "Timestamp      DOUBLE  NOT NULL, "
         "Duration       DOUBLE  NOT NULL, "
         "DurationInt    INT     NOT NULL, "
         "EventType      INT     NOT NULL, "
-        "Annotation     TEXT    NOT NULL);";
+        "Text           TEXT    NOT NULL);";
 
-    error = sqlite3_exec(mDatabase, createAnnotationsTableSql, nullptr, 0, &errMsg);
+    error = sqlite3_exec(mDatabase, createCommentsTableSql, nullptr, 0, &errMsg);
 
     if (error != SQLITE_OK) 
     {
@@ -59,7 +58,75 @@ bool DatabaseManager::ConstructDatabase(const String& path)
         return false;
     } 
     else 
-        LOGC("Annotations Table created successfully: ", createAnnotationsTableSql);
+        LOGC("Comments table created successfully: ", createCommentsTableSql);
+
+    const char* createPatientTableSql =
+        "CREATE TABLE IF NOT EXISTS Patient ("
+        "FirstName      TEXT    NOT NULL,"
+        "MiddleName     TEXT    NOT NULL,"
+        "LastName       TEXT    NOT NULL,"
+        "PatientId      TEXT    NOT NULL,"
+        "Gender         TEXT    NOT NULL,"
+        "Hand           TEXT    NOT NULL,"
+        "DateOfBirth    TEXT    NOT NULL,"
+        "Physician      TEXT    NOT NULL,"
+        "Technician     TEXT    NOT NULL,"
+        "Medications    TEXT    NOT NULL,"
+        "History        TEXT    NOT NULL,"
+        "Extra1         TEXT    NOT NULL,"
+        "Extra2         TEXT    NOT NULL,"
+        "TestDate       TEXT    NOT NULL,"
+        "TestTime       TEXT    NOT NULL);";
+
+    error = sqlite3_exec(mDatabase, createPatientTableSql, nullptr, 0, &errMsg);
+
+    if (error != SQLITE_OK) 
+    {
+        LOGC(errMsg);
+        sqlite3_free(errMsg);
+
+        return false;
+    } 
+    else 
+        LOGC("Patient table created successfully: ", createPatientTableSql);
+
+    const char* channelsTableSql =
+        "CREATE TABLE IF NOT EXISTS Channels ("
+        "ChannelName    TEXT    NOT NULL,"
+        "ChannelNumber  INT     NOT NULL);";
+
+    error = sqlite3_exec(mDatabase, channelsTableSql, nullptr, 0, &errMsg);
+
+    if (error != SQLITE_OK) 
+    {
+        LOGC(errMsg);
+        sqlite3_free(errMsg);
+
+        return false;
+    } 
+    else 
+        LOGC("Channels table created successfully: ", channelsTableSql);
+
+    const char* fileInfoTableSql =
+        "CREATE TABLE IF NOT EXISTS FileInfo ("
+        "File           TEXT    NOT NULL,"
+        "WaveformCount  INT     NOT NULL,"
+        "SamplingRate   DOUBLE  NOT NULL,"
+        "Calibration    DOUBLE  NOT NULL,"
+        "FileType       TEXT    NOT NULL,"
+        "DataType       INT     NOT NULL);";
+
+    error = sqlite3_exec(mDatabase, fileInfoTableSql, nullptr, 0, &errMsg);
+
+    if (error != SQLITE_OK) 
+    {
+        LOGC(errMsg);
+        sqlite3_free(errMsg);
+
+        return false;
+    } 
+    else 
+        LOGC("FileInfo table created successfully: ", fileInfoTableSql);
 
     return true;
 }
@@ -85,10 +152,10 @@ void DatabaseManager::InsertIntoSampleTimesTable(int64 baseSampleNumber, double 
     sqlite3_finalize(stmt);
 }
 
-void DatabaseManager::InsertIntoAnnotationsTable(double timestamp, double duration, int durationInt, int eventType, const char* comment)
+void DatabaseManager::InsertIntoCommentsTable(double timestamp, double duration, int durationInt, int eventType, const char* text)
 {
     const char* insertAnnotationSql = 
-        "INSERT INTO Annotations (Timestamp, Duration, DurationInt, EventType, Annotation) "
+        "INSERT INTO Comments (Timestamp, Duration, DurationInt, EventType, Text) "
         "VALUES (?, ?, ?, ?, ?);";
 
     sqlite3_stmt* stmt;
@@ -104,17 +171,19 @@ void DatabaseManager::InsertIntoAnnotationsTable(double timestamp, double durati
     sqlite3_bind_double(stmt, 2, duration);
     sqlite3_bind_int(stmt, 3, durationInt);
     sqlite3_bind_int(stmt, 4, eventType);
-    sqlite3_bind_text(stmt, 5, comment, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 5, text, -1, SQLITE_STATIC);
 
     if (sqlite3_step(stmt) != SQLITE_DONE)
-        LOGC("Failed to insert data: (", timestamp, ", ", duration, ", ", durationInt, ", ", eventType, ", ", comment, ")");
+        LOGC("Failed to insert data: (", timestamp, ", ", duration, ", ", durationInt, ", ", eventType, ", ", text, ")")
+    else
+        LOGC("Inserted data: (", timestamp, ", ", duration, ", ", durationInt, ", ", eventType, ", ", text, ")");
 
     sqlite3_finalize(stmt);
 }
 
-Array<Annotation> DatabaseManager::GetAnnotationsFromDatabase() const
+Array<Comment> DatabaseManager::GetCommentsFromDatabase() const
 {
-    Array<Annotation> annotations;
+    Array<Comment> comments;
 
     const char* selectAnnotationsSql = "SELECT * FROM Annotations;";
     sqlite3_stmt* stmt;
@@ -129,19 +198,17 @@ Array<Annotation> DatabaseManager::GetAnnotationsFromDatabase() const
         double duration = sqlite3_column_double(stmt, 1);
         int durationInt = sqlite3_column_int(stmt, 2);
         int eventType = sqlite3_column_int(stmt, 3);
-        const char* comment = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
 
-        annotations.add(Annotation(timestamp, duration, durationInt, eventType, comment));
+        comments.add(Comment(timestamp, duration, durationInt, eventType, text));
     }
 
     sqlite3_finalize(stmt);
 
-    return annotations;
+    return comments;
 }
 
-void DatabaseManager::WriteSampleTimesFromDatabaseToLayoutFile(int writeChannel, 
-    Array<unsigned int>& fileIndexes, 
-    OwnedArray<FileOutputStream>& layoutFiles)
+void DatabaseManager::WriteSampleTimesFromDatabaseToLayoutFile(FileOutputStream* layFile)
 {
     const char* selectSampleTimesSql = "SELECT * FROM SampleTimes;";
     sqlite3_stmt* stmt;
@@ -150,14 +217,12 @@ void DatabaseManager::WriteSampleTimesFromDatabaseToLayoutFile(int writeChannel,
     if (error != SQLITE_OK)
         LOGC("Failed to prepare statement: ", selectSampleTimesSql);
 
-    int fileIndex = fileIndexes[writeChannel];
-
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         int baseSampleNumber = sqlite3_column_int(stmt, 0);
         double timestamp = sqlite3_column_double(stmt, 1);
 
-        layoutFiles[fileIndex]->writeText(String(baseSampleNumber) + 
+        layFile->writeText(String(baseSampleNumber) + 
             String("=") + 
             String(timestamp) + 
             String("\n"), 
@@ -169,14 +234,9 @@ void DatabaseManager::WriteSampleTimesFromDatabaseToLayoutFile(int writeChannel,
     sqlite3_finalize(stmt);
 }
 
-void DatabaseManager::WriteAnnotationsFromDatabaseToLayoutFile(int writeChannel,
-    Array<unsigned int>& fileIndexes, 
-    OwnedArray<FileOutputStream>& layoutFiles)
+void DatabaseManager::WriteCommentsFromDatabaseToLayoutFile(FileOutputStream* layFile)
 {
-    int fileIndex = fileIndexes[writeChannel];
-    layoutFiles[fileIndex]->writeText("[Comments]\n", false, false, nullptr);
-
-    const char* selectAnnotationsSql = "SELECT * FROM Annotations;";
+    const char* selectAnnotationsSql = "SELECT * FROM Comments;";
     sqlite3_stmt* stmt;
     int error = sqlite3_prepare_v2(mDatabase, selectAnnotationsSql, -1, &stmt, nullptr);
 
@@ -189,13 +249,13 @@ void DatabaseManager::WriteAnnotationsFromDatabaseToLayoutFile(int writeChannel,
         double duration = sqlite3_column_double(stmt, 1);
         int durationInt = sqlite3_column_int(stmt, 2);
         int bufferSize = sqlite3_column_int(stmt, 3);
-        const char* comment = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
 
-        layoutFiles[fileIndex]->writeText(String(timestamp) + "," +
+        layFile->writeText(String(timestamp) + "," +
             String(duration) + "," +
             String(durationInt) + "," +
             String(bufferSize) + "," +
-            String(comment) +
+            String(text) +
             String("\n"),
             false,
             false,
@@ -203,4 +263,20 @@ void DatabaseManager::WriteAnnotationsFromDatabaseToLayoutFile(int writeChannel,
     }
 
     sqlite3_finalize(stmt);
+}
+
+bool DatabaseManager::IsDatabaseConstructed() const
+{
+    return mDatabase;
+}
+
+void DatabaseManager::CloseDatabase()
+{
+    if (mDatabase)
+        sqlite3_close(mDatabase);
+}
+
+int DatabaseManager::GetSampleTimesPosition() const
+{
+    return 0;
 }

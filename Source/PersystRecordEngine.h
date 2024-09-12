@@ -25,13 +25,14 @@
 #define RECORDENGINEPLUGIN_H_DEFINED
 
 #include "DatabaseManager.h"
-#include "LayFileAnnotationExtractor.h"
+#include "LayFileComment.h"
 
 #include <RecordingLib.h>
 #include <vector>
 #include <utility>
 #include <unordered_map>
 #include <sqlite3.h>
+#include <queue>
 
 class TESTABLE PersystRecordEngine : public RecordEngine
 {
@@ -80,7 +81,7 @@ public:
 
     void setParameter(EngineParameter& parameter) override;
 
-    int getSampleTimesPosition() const;
+    int getCommentsPosition() const;
 
 private:
     class EventRecording
@@ -91,6 +92,24 @@ private:
         std::unique_ptr<NpyFile> channels;
         std::unique_ptr<NpyFile> extraFile;
         std::unique_ptr<NpyFile> timestamps;
+    };
+
+    class LayFileOverwriteTimer : public Timer
+    {
+    public:
+        LayFileOverwriteTimer(OwnedArray<FileOutputStream>& layFiles);
+
+        void SetLayoutFilePath(const String& path);
+        void SetLayoutFileIndex(int index);
+
+    private:
+        String mLayFilePath;
+        int mFileIndex;
+        OwnedArray<FileOutputStream>& mLayoutFiles;
+
+    private:
+        // Inherited via Timer
+        void timerCallback() override;
     };
 
 private:
@@ -105,6 +124,7 @@ private:
     OwnedArray<FileOutputStream> mLayoutFiles;
     OwnedArray<EventRecording> mEventFiles;
     OwnedArray<SequentialBlockFile> mContinuousFiles;
+    String mLayFilePath;
 
     HeapBlock<float> mScaledBuffer;
     HeapBlock<int16> mIntBuffer;
@@ -116,9 +136,9 @@ private:
     int mSampleTimesPosition{ 0 };
     Array<int64> mSamplesWritten;
 
-    std::unordered_map<int, std::vector<std::pair<String, double>>> mTextEvents;
-
     DatabaseManager mDatabaseManager;
-    OwnedArray<LayFileAnnotationExtractor> mAnnotationExtractors;
+
+    LayFileOverwriteTimer mTimer;
+    std::queue<Comment> mComments;
 };
 #endif

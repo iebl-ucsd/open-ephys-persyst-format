@@ -26,7 +26,8 @@
 
 #define MAX_BUFFER_SIZE 40960
 
-PersystRecordEngine::PersystRecordEngine()
+PersystRecordEngine::PersystRecordEngine() :
+    mTimer(mLayoutFiles)
 {
     mBufferSize = MAX_BUFFER_SIZE;
     mScaledBuffer.malloc(MAX_BUFFER_SIZE);
@@ -122,7 +123,7 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
         String datPath = GetProcessorString(ch);
         String dataFileName = "recording.dat";
         String dataFilePath = contPath + datPath + dataFileName;
-        String layoutFilePath = contPath + datPath + "recording.lay";
+        mLayFilePath = contPath + datPath + "recording.lay";
         dbPath = contPath + datPath + "recording.db";
 
         std::unique_ptr<SequentialBlockFile> bFile = std::make_unique<SequentialBlockFile>(channelCounts[streamIndex], mSamplesPerBlock);
@@ -132,19 +133,18 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
         else
             mContinuousFiles.add(nullptr);
 
-        PersystLayFileFormat layoutFile = PersystLayFileFormat::Create(layoutFilePath,
+        PersystLayFileFormat layoutFile = PersystLayFileFormat::Create(mLayFilePath,
             ch->getSampleRate(),
             ch->getBitVolts(),
             channelCounts[streamIndex])
             .WithDataFile(dataFileName);
 
-        std::unique_ptr<FileOutputStream> layoutFileStream = std::make_unique<FileOutputStream>(layoutFile.GetLayoutFilePath());
+        mDatabaseManager.ConstructDatabase(dbPath);
+
+        std::unique_ptr<FileOutputStream> layoutFileStream = std::make_unique<FileOutputStream>(mLayFilePath);
 
         if (layoutFileStream->openedOk())
         {
-            mAnnotationExtractors.add(new LayFileAnnotationExtractor());
-            mAnnotationExtractors.getLast()->OpenFile(layoutFile.GetLayoutFilePath());
-
             layoutFileStream->writeText(layoutFile.ToString(), false, false, nullptr);
             layoutFileStream->writeText("[ChannelMap]\n", false, false, nullptr);
             //Persyst uses first index = 1
@@ -155,11 +155,14 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
 
             layoutFileStream->writeText("[SampleTimes]\n", false, false, nullptr);
             mSampleTimesPosition = layoutFileStream->getPosition();
+
             mLayoutFiles.add(layoutFileStream.release());
         }
         else
             mLayoutFiles.add(nullptr);
     }
+
+    mTimer.SetLayoutFilePath(mLayFilePath);
 
     //Event data files
     String eventPath(basepath + "events" + File::getSeparatorString());
@@ -231,8 +234,6 @@ void PersystRecordEngine::openFiles(File rootFolder, int experimentNumber, int r
         mEventFiles.add(rec.release());
         eventChannelJSON.add(var(jsonChannel));
     }
-
-    mDatabaseManager.ConstructDatabase(dbPath);
 }
 
 void PersystRecordEngine::closeFiles()
@@ -249,7 +250,8 @@ void PersystRecordEngine::closeFiles()
     mSamplesWritten.clear();
 
     mEventFiles.clear();
-    mTextEvents.clear();
+
+    mDatabaseManager.CloseDatabase();
 }
 
 void PersystRecordEngine::writeContinuousData(
@@ -290,30 +292,30 @@ void PersystRecordEngine::writeContinuousData(
     if (mChannelIndexes[writeChannel] == 0)
     {
         int64 baseSampleNumber = mSamplesWritten[writeChannel];
-
         mDatabaseManager.InsertIntoSampleTimesTable(baseSampleNumber, ftsBuffer[0]);
+        
+        String sampleTime = String(baseSampleNumber) + "=" + String(ftsBuffer[0]) + "\n";
+        FileOutputStream* layFile = mLayoutFiles[fileIndex];
 
-        mAnnotationExtractors[fileIndex]->SetPosition(mSampleTimesPosition);
-        auto existingAnnotations = mDatabaseManager.GetAnnotationsFromDatabase();
-        auto annotations = mAnnotationExtractors[fileIndex]->GetNewAnnotations(existingAnnotations);
-
-        for (const auto& annotation : annotations)
+        if (layFile)
         {
-            mDatabaseManager.InsertIntoAnnotationsTable(annotation.timestamp, 
-                annotation.duration, 
-                annotation.durationInt, 
-                annotation.eventType, 
-                annotation.text.toRawUTF8());
+            layFile->setPosition(mSampleTimesPosition);
+            layFile->truncate();
+            mDatabaseManager.WriteSampleTimesFromDatabaseToLayoutFile(layFile);
+
+            layFile->writeText("[Comments]\n", false, false, nullptr);
+            mDatabaseManager.WriteCommentsFromDatabaseToLayoutFile(layFile);
+            layFile->flush();
+
+            if (!mComments.empty())
+            {
+                mComments.swap(std::queue<Comment>());
+
+                mLayoutFiles.remove(fileIndex, true);
+                mTimer.SetLayoutFileIndex(fileIndex);
+                mTimer.startTimer(10000);
+            }
         }
-
-        mLayoutFiles[fileIndex]->setPosition(mSampleTimesPosition);
-        mLayoutFiles[fileIndex]->truncate();
-
-        mDatabaseManager.WriteSampleTimesFromDatabaseToLayoutFile(writeChannel, mFileIndexes, mLayoutFiles);
-        mLayoutFiles[fileIndex]->flush();
-
-        mDatabaseManager.WriteAnnotationsFromDatabaseToLayoutFile(writeChannel, mFileIndexes, mLayoutFiles);
-        mLayoutFiles[fileIndex]->flush();
     }
 
     mSamplesWritten.set(writeChannel, mSamplesWritten[writeChannel] + size);
@@ -349,17 +351,42 @@ void PersystRecordEngine::writeEvent(int eventChannel, const EventPacket& event)
     }
     else if (ev->getEventType() == EventChannel::TEXT)
     {
-        TextEvent* text = static_cast<TextEvent*>(ev.get());
+        TextEvent* textEvent = static_cast<TextEvent*>(ev.get());
 
-        int64 sampleIdx = text->getSampleNumber();
+        int64 sampleIdx = textEvent->getSampleNumber();
         rec->samples->writeData(&sampleIdx, sizeof(int64));
 
-        double ts = text->getTimestampInSeconds();
+        double ts = textEvent->getTimestampInSeconds();
         rec->timestamps->writeData(&ts, sizeof(double));
 
         rec->data->writeData(ev->getRawDataPointer(), info->getDataSize());
 
-        mDatabaseManager.InsertIntoAnnotationsTable(ts, 0.0, 0, 65536, text->getText().toRawUTF8());
+        auto text = textEvent->getText();
+
+        mDatabaseManager.InsertIntoCommentsTable(ts, 0.0, 0, 65536, text.toRawUTF8());
+
+        int fileIndex = mFileIndexes[eventChannel];
+
+        FileOutputStream* layFile = mLayoutFiles[fileIndex];
+
+        if (layFile)
+        {
+            layFile->setPosition(mSampleTimesPosition);
+            layFile->truncate();
+            mDatabaseManager.WriteSampleTimesFromDatabaseToLayoutFile(layFile);
+
+            layFile->writeText("[Comments]\n", false, false, nullptr);
+            mDatabaseManager.WriteCommentsFromDatabaseToLayoutFile(layFile);
+            layFile->flush();
+
+            mLayoutFiles.remove(fileIndex, true);
+            mTimer.SetLayoutFileIndex(fileIndex);
+
+            // Recreate the layout file output stream after 10 seconds
+            mTimer.startTimer(10000);
+        }
+        else
+            mComments.emplace(ts, 0.0, 0, 65536, text);
     }
 
     // NOT IMPLEMENTED
@@ -510,7 +537,28 @@ void PersystRecordEngine::setParameter(EngineParameter& parameter)
     boolParameter(0, mSaveTTLWords);
 }
 
-int PersystRecordEngine::getSampleTimesPosition() const
+int PersystRecordEngine::getCommentsPosition() const
 {
     return mSampleTimesPosition;
+}
+
+PersystRecordEngine::LayFileOverwriteTimer::LayFileOverwriteTimer(OwnedArray<FileOutputStream>& layFiles) : 
+    mLayoutFiles(layFiles),
+    mFileIndex(0)
+{}
+
+void PersystRecordEngine::LayFileOverwriteTimer::SetLayoutFilePath(const String& path)
+{
+    mLayFilePath = path;
+}
+
+void PersystRecordEngine::LayFileOverwriteTimer::SetLayoutFileIndex(int index)
+{
+    mFileIndex = index;
+}
+
+void PersystRecordEngine::LayFileOverwriteTimer::timerCallback()
+{
+    mLayoutFiles.insert(mFileIndex, new FileOutputStream(mLayFilePath));
+    stopTimer();
 }

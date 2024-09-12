@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LayFileAnnotationExtractor.h"
+#include "LayFileComment.h"
 
 #include <sqlite3.h>
 #include <RecordingLib.h>
@@ -14,15 +14,17 @@ public:
     bool ConstructDatabase(const String& path);
 
     void InsertIntoSampleTimesTable(int64 baseSampleNumber, double timestamp);
-    void InsertIntoAnnotationsTable(double timestamp, double duration, int durationInt, int eventType, const char* comment);
-    Array<Annotation> GetAnnotationsFromDatabase() const;
+    void InsertIntoCommentsTable(double timestamp, double duration, int durationInt, int eventType, const char* comment);
+    Array<Comment> GetCommentsFromDatabase() const;
 
-    void WriteSampleTimesFromDatabaseToLayoutFile(int writeChannel, 
-        Array<unsigned int>& fileIndexes, 
-        OwnedArray<FileOutputStream>& layoutFiles);
-    void WriteAnnotationsFromDatabaseToLayoutFile(int writeChannel,
-        Array<unsigned int>& fileIndexes, 
-        OwnedArray<FileOutputStream>& layoutFiles);
+    void WriteSampleTimesFromDatabaseToLayoutFile(FileOutputStream* layFile);
+    void WriteCommentsFromDatabaseToLayoutFile(FileOutputStream* layFile);
+
+    bool IsDatabaseConstructed() const;
+    void CloseDatabase();
+
+private:
+    int GetSampleTimesPosition() const;
 
 private:
     sqlite3* mDatabase{ nullptr };
