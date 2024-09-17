@@ -405,6 +405,8 @@ protected:
 //From RecordNodeTests.cpp - uses same binary file writes
 TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Single)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     int numSamples = 100;
     mTester->startAcquisition(true);
 
@@ -435,6 +437,8 @@ TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Single)
 //From RecordNodeTests.cpp - uses same binary file writes
 TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Multiple)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mTester->startAcquisition(true);
 
     int numSamplesPerBlock = 100;
@@ -473,6 +477,8 @@ TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Multiple)
 //From RecordNodeTests.cpp - uses same binary file writes
 TEST_F(PersystRecordEngineTests, TestEmpty)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mTester->startAcquisition(true);
     mTester->stopAcquisition();
 
@@ -483,17 +489,20 @@ TEST_F(PersystRecordEngineTests, TestEmpty)
 
 TEST_F(PersystRecordEngineTests, TestLayoutFormat)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mTester->startAcquisition(true);
     mTester->stopAcquisition();
     boost::property_tree::ptree pt;
     LoadLayoutFile(pt);
     CheckLayoutFileInfo(pt);
     CheckLayoutChannelMap(pt);
-
 }
 
 TEST_F(PersystRecordEngineTests, TestSampleIndexes_Continuous_Multiple)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mSampleRate = 100;
     UpdateSourceNodesStreamParams();
 
@@ -517,11 +526,12 @@ TEST_F(PersystRecordEngineTests, TestSampleIndexes_Continuous_Multiple)
     CheckLayoutFileInfo(pt);
     CheckLayoutChannelMap(pt);
     CheckLayoutSampleTimes(pt, mSampleRate, numSamplesPerBlock);
-
 }
 
 TEST_F(PersystRecordEngineTests, TestLayoutFormatChangedFiles)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mTester->startAcquisition(true);
     mTester->stopAcquisition();
     boost::property_tree::ptree pt;
@@ -553,13 +563,13 @@ TEST_F(PersystRecordEngineTests, TestLayoutFormatChangedFiles)
     LoadLayoutFile(pt, parameters);
     CheckLayoutFileInfo(pt);
     CheckLayoutChannelMap(pt);
-
-
 }
 
 //From RecordNodeTests.cpp - uses same event file writes
 TEST_F(PersystRecordEngineTests, Test_PersistsEvents)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mProcessor->setRecordEvents(true);
     mProcessor->updateSettings();
 
@@ -619,6 +629,8 @@ class CustomBitVolts_PersystRecordEngineTests : public PersystRecordEngineTests
 //From RecordNodeTests.cpp - uses same binary file writes
 TEST_F(CustomBitVolts_PersystRecordEngineTests, Test_RespectsBitVolts)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     int numSamples = 100;
     mTester->startAcquisition(true);
     auto inputBuffer = CreateBuffer(1000.0, 20.0, mNumChannels, numSamples);
@@ -661,6 +673,8 @@ class MultipleStreams_PersystRecordEngineTests : public PersystRecordEngineTests
 
 TEST_F(MultipleStreams_PersystRecordEngineTests, TestCorrectDirectories_MultipleStreams)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mTester->startAcquisition(true, true);
     mTester->stopAcquisition();
     int i = 0;
@@ -680,6 +694,8 @@ TEST_F(MultipleStreams_PersystRecordEngineTests, TestCorrectDirectories_Multiple
 
 TEST_F(MultipleStreams_PersystRecordEngineTests, TestInputOutput_MultipleStreamsContinous)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mTester->startAcquisition(true, true);
 
     int numSamplesPerBlock = 100;
@@ -724,6 +740,8 @@ TEST_F(MultipleStreams_PersystRecordEngineTests, TestInputOutput_MultipleStreams
 
 TEST_F(MultipleStreams_PersystRecordEngineTests, TestLayoutFormat_MultipleStreams)
 {
+    GTEST_SKIP() << "Requires headless mode support.";
+
     mTester->startAcquisition(true, true);
     mTester->stopAcquisition();
     for (const auto& stream : mProcessor->getDataStreams())
@@ -735,6 +753,5 @@ TEST_F(MultipleStreams_PersystRecordEngineTests, TestLayoutFormat_MultipleStream
         CheckLayoutFileInfo(pt);
         CheckLayoutChannelMap(pt);
     }
-
 }
 
