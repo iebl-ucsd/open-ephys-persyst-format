@@ -57,9 +57,6 @@ if(BUILD_TESTS)
 add_library(${PLUGIN_NAME}_testable SHARED ${SRC_FILES})
 endif()
 
-find_package(SQLite3 REQUIRED)
-target_link_libraries(${PLUGIN_NAME} SQLite::SQLite3)
-
 target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers cxx_std_17)
 target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include ${SQLite3_INCLUDE_DIRS})
 
@@ -91,14 +88,14 @@ endif()
 
 #Libraries and compiler options
 if(MSVC)
-	target_link_libraries(${PLUGIN_NAME} ${GUI_BIN_DIR}/open-ephys.lib)
+	target_link_libraries(${PLUGIN_NAME} PRIVATE ${GUI_BIN_DIR}/open-ephys.lib)
 	target_compile_options(${PLUGIN_NAME} PRIVATE /sdl- /W0)
 	set(INSTALL_PATH  ${GUI_BIN_DIR}/plugins)	
 	install(TARGETS ${PLUGIN_NAME} RUNTIME DESTINATION ${GUI_BIN_DIR}/plugins  CONFIGURATIONS ${CMAKE_CONFIGURATION_TYPES})
 
 	set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../libs)
 elseif(LINUX)
-	target_link_libraries(${PLUGIN_NAME} GL X11 Xext Xinerama asound dl freetype pthread rt)
+	target_link_libraries(${PLUGIN_NAME} PRIVATE GL X11 Xext Xinerama asound dl freetype pthread rt)
 	set_property(TARGET ${PLUGIN_NAME} APPEND_STRING PROPERTY LINK_FLAGS
 		"-fvisibility=hidden -fPIC -rdynamic -Wl,-rpath,'$$ORIGIN/../shared'")
 	target_compile_options(${PLUGIN_NAME} PRIVATE -fPIC -rdynamic)
@@ -160,3 +157,11 @@ endforeach()
 #
 #target_link_libraries(${PLUGIN_NAME} ${LIBNAME_LIBRARIES})
 #target_include_directories(${PLUGIN_NAME} PRIVATE ${LIBNAME_INCLUDE_DIRS})
+
+find_package(SQLite3 REQUIRED)
+target_link_libraries(${PLUGIN_NAME} PRIVATE SQLite::SQLite3)
+
+if(BUILD_TESTS)
+target_link_libraries(${PLUGIN_NAME}_testable PRIVATE SQLite::SQLite3)
+target_link_libraries(${PLUGIN_NAME}_tests PRIVATE SQLite::SQLite3)
+endif()
