@@ -26,7 +26,7 @@ public:
 };
 
 
-class PersystRecordEngineTests : public testing::Test
+class PersystRecordEngineUnitTests : public testing::Test
 {
 protected:
     void SetUp() override
@@ -49,7 +49,7 @@ protected:
         mTester->setRecordingParentDirectory(mParentRecordingDir.string());
         mProcessor = mTester->createProcessor<RecordNode>(Plugin::Processor::RECORD_NODE);
         std::unique_ptr<RecordEngineManager> recordEngineManager = std::unique_ptr<RecordEngineManager>(PersystRecordEngine::getEngineManager());
-        mProcessor->overrideRecordEngine(recordEngineManager.get());
+        //mProcessor->overrideRecordEngine(recordEngineManager.get());
     }
 
     void TearDown() override
@@ -403,7 +403,7 @@ protected:
 };
 
 //From RecordNodeTests.cpp - uses same binary file writes
-TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Single)
+TEST_F(PersystRecordEngineUnitTests, TestInputOutput_Continuous_Single)
 {
     int numSamples = 100;
     mTester->startAcquisition(true);
@@ -433,7 +433,7 @@ TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Single)
 }
 
 //From RecordNodeTests.cpp - uses same binary file writes
-TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Multiple)
+TEST_F(PersystRecordEngineUnitTests, TestInputOutput_Continuous_Multiple)
 {
     mTester->startAcquisition(true);
 
@@ -471,7 +471,7 @@ TEST_F(PersystRecordEngineTests, TestInputOutput_Continuous_Multiple)
 }
 
 //From RecordNodeTests.cpp - uses same binary file writes
-TEST_F(PersystRecordEngineTests, TestEmpty)
+TEST_F(PersystRecordEngineUnitTests, TestEmpty)
 {
     mTester->startAcquisition(true);
     mTester->stopAcquisition();
@@ -481,7 +481,7 @@ TEST_F(PersystRecordEngineTests, TestEmpty)
     ASSERT_EQ(persistedData.size(), 0);
 }
 
-TEST_F(PersystRecordEngineTests, TestLayoutFormat)
+TEST_F(PersystRecordEngineUnitTests, TestLayoutFormat)
 {
     mTester->startAcquisition(true);
     mTester->stopAcquisition();
@@ -492,7 +492,7 @@ TEST_F(PersystRecordEngineTests, TestLayoutFormat)
 
 }
 
-TEST_F(PersystRecordEngineTests, TestSampleIndexes_Continuous_Multiple)
+TEST_F(PersystRecordEngineUnitTests, TestSampleIndexes_Continuous_Multiple)
 {
     mSampleRate = 100;
     UpdateSourceNodesStreamParams();
@@ -520,7 +520,7 @@ TEST_F(PersystRecordEngineTests, TestSampleIndexes_Continuous_Multiple)
 
 }
 
-TEST_F(PersystRecordEngineTests, TestLayoutFormatChangedFiles)
+TEST_F(PersystRecordEngineUnitTests, TestLayoutFormatChangedFiles)
 {
     mTester->startAcquisition(true);
     mTester->stopAcquisition();
@@ -558,7 +558,7 @@ TEST_F(PersystRecordEngineTests, TestLayoutFormatChangedFiles)
 }
 
 //From RecordNodeTests.cpp - uses same event file writes
-TEST_F(PersystRecordEngineTests, Test_PersistsEvents)
+TEST_F(PersystRecordEngineUnitTests, Test_PersistsEvents)
 {
     mProcessor->setRecordEvents(true);
     mProcessor->updateSettings();
@@ -607,12 +607,12 @@ TEST_F(PersystRecordEngineTests, Test_PersistsEvents)
     CompareBinaryFilesHex("full_words.npy", fullWordsBin, expectedFullWordsHex);
 }
 
-class CustomBitVolts_PersystRecordEngineTests : public PersystRecordEngineTests
+class CustomBitVolts_PersystRecordEngineTests : public PersystRecordEngineUnitTests
 {
     void SetUp() override
     {
         mBitVolts = 0.195;
-        PersystRecordEngineTests::SetUp();
+        PersystRecordEngineUnitTests::SetUp();
     }
 };
 
@@ -650,12 +650,12 @@ TEST_F(CustomBitVolts_PersystRecordEngineTests, Test_RespectsBitVolts)
     }
 }
 
-class MultipleStreams_PersystRecordEngineTests : public PersystRecordEngineTests
+class MultipleStreams_PersystRecordEngineTests : public PersystRecordEngineUnitTests
 {
     void SetUp() override
     {
         mStreams = 2;
-        PersystRecordEngineTests::SetUp();
+        PersystRecordEngineUnitTests::SetUp();
     }
 };
 
