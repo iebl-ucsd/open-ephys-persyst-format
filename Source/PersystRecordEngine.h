@@ -24,10 +24,15 @@
 #ifndef RECORDENGINEPLUGIN_H_DEFINED
 #define RECORDENGINEPLUGIN_H_DEFINED
 
+#include "DatabaseManager.h"
+#include "LayFileComment.h"
+
 #include <RecordingLib.h>
 #include <vector>
 #include <utility>
 #include <unordered_map>
+#include <sqlite3.h>
+#include <queue>
 
 class TESTABLE PersystRecordEngine : public RecordEngine
 {
@@ -37,7 +42,7 @@ public:
     PersystRecordEngine();
 
     /** Destructor */
-    ~PersystRecordEngine();
+    ~PersystRecordEngine() override;
 
     /** Launches the manager for this Record Engine, and instantiates any parameters */
     static RecordEngineManager* getEngineManager();
@@ -76,6 +81,8 @@ public:
 
     void setParameter(EngineParameter& parameter) override;
 
+    int getCommentsPosition() const;
+
 private:
     class EventRecording
     {
@@ -85,6 +92,24 @@ private:
         std::unique_ptr<NpyFile> channels;
         std::unique_ptr<NpyFile> extraFile;
         std::unique_ptr<NpyFile> timestamps;
+    };
+
+    class LayFileOverwriteTimer : public Timer
+    {
+    public:
+        LayFileOverwriteTimer(OwnedArray<FileOutputStream>& layFiles);
+
+        void SetLayoutFilePath(const String& path);
+        void SetLayoutFileIndex(int index);
+
+    private:
+        String mLayFilePath;
+        int mFileIndex;
+        OwnedArray<FileOutputStream>& mLayoutFiles;
+
+    private:
+        // Inherited via Timer
+        void timerCallback() override;
     };
 
 private:
@@ -98,22 +123,22 @@ private:
 
     OwnedArray<FileOutputStream> mLayoutFiles;
     OwnedArray<EventRecording> mEventFiles;
+    OwnedArray<SequentialBlockFile> mContinuousFiles;
+    String mLayFilePath;
 
     HeapBlock<float> mScaledBuffer;
     HeapBlock<int16> mIntBuffer;
-
-    Array<int64> mSamplesWritten;
+    int mBufferSize;
 
     bool mSaveTTLWords{ true };
 
-    int mBufferSize;
-
-    OwnedArray<SequentialBlockFile> mContinuousFiles;
-
     const int mSamplesPerBlock{ 4096 };
+    int mSampleTimesPosition{ 0 };
+    Array<int64> mSamplesWritten;
 
-    std::unordered_map<int, std::vector<std::pair<String, double>>> mTextEvents;
+    DatabaseManager mDatabaseManager;
 
-    int mCurrentWriteChannel = -1;
+    LayFileOverwriteTimer mTimer;
+    std::queue<Comment> mComments;
 };
 #endif
